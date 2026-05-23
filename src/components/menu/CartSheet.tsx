@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { X, ChevronDown } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useCartStore } from '@/lib/hooks/useCart'
 import type { Cafe, Table } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -15,6 +15,7 @@ interface Props {
 export default function CartSheet({ cafe, table, onClose }: Props) {
   const { cart, updateQuantity, removeItem, subtotal, clearCart } = useCartStore()
   const [notes, setNotes] = useState('')
+  const [phone, setPhone] = useState('')
   const [payMethod, setPayMethod] = useState<'upi' | 'cash'>('upi')
   const [placing, setPlacing] = useState(false)
   const router = useRouter()
@@ -43,6 +44,7 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           })),
           paymentMethod: payMethod,
           notes,
+          customerPhone: phone.trim() || undefined,
           subtotal: sub,
           taxAmount: tax,
           totalAmount: total,
@@ -116,6 +118,21 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           ))}
         </div>
 
+        {/* Phone — optional, for WhatsApp confirmation */}
+        <div className="px-5 pb-3">
+          <div className="flex items-center gap-2 bg-surface-overlay rounded-xl border border-ink/5 px-3 py-2 focus-within:ring-1 focus-within:ring-brand-400">
+            <span className="text-sm text-ink-muted shrink-0">🇮🇳 +91</span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="WhatsApp number (optional)"
+              className="flex-1 text-sm text-ink placeholder:text-ink-faint bg-transparent focus:outline-none"
+            />
+          </div>
+          <p className="text-[11px] text-ink-faint mt-1 px-1">Get order updates on WhatsApp</p>
+        </div>
+
         {/* Notes */}
         <div className="px-5 pb-3">
           <textarea
@@ -182,6 +199,7 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           </button>
         </div>
       </div>
+
     </>
   )
 }

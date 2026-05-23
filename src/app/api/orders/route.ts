@@ -1,27 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendOrderConfirmation, sendOwnerAlert } from '@/lib/utils/whatsapp'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const {
       cafeId, tableId, items,
-      paymentMethod, notes,
+      paymentMethod, notes, customerPhone,
       subtotal, taxAmount, totalAmount,
     } = body
 
     const supabase = createAdminClient()
 
-    // Create the order
+    // Upsert customer if phone provided
+    let customerId: string | null = null
+    if (customerPhone) {
+      const { data: customer } = await supabase
+        .from('customers')
+        .upsert(
+          { cafe_id: cafeId, phone: customerPhone, whatsapp: customerPhone },
+          { onConflict: 'cafe_id,phone', ignoreDuplicates: false }
+        )
+        .select('id')
+        .single()
+      customerId = customer?.id ?? null
+    }
+
+    // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         cafe_id: cafeId,
         table_id: tableId,
+        customer_id: customerId,
         order_number: `ORD-${Date.now().toString().slice(-4)}`,
         status: 'pending',
         payment_method: paymentMethod,
-        payment_status: paymentMethod === 'cash' ? 'pending' : 'pending',
+        payment_status: 'pending',
         subtotal,
         tax_amount: taxAmount,
         service_charge: 0,
@@ -52,8 +68,37 @@ export async function POST(req: NextRequest) {
 
     if (itemsError) throw itemsError
 
-    // TODO Phase 2: Send WhatsApp confirmation to customer
-    // await sendWhatsAppConfirmation(order, items)
+    // Fetch cafe for name + owner whatsapp
+    const { data: cafe } = await supabase
+      .from('cafes')
+      .select('name, whatsapp')
+      .eq('id', cafeId)
+      .single()
+
+    // Fetch table number
+    const { data: table } = await supabase
+      .from('tables')
+      .select('number')
+      .eq('id', tableId)
+      .single()
+
+    const whatsappPayload = {
+      phone: customerPhone ?? '',
+      orderNumber: order.order_number,
+      orderId: order.id,
+      cafeName: cafe?.name ?? 'Cafe',
+      tableNumber: table?.number ?? 0,
+      items: items.map((i: any) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+      total: totalAmount,
+    }
+
+    // Fire WhatsApp notifications — both run async, never block response
+    if (customerPhone) {
+      sendOrderConfirmation(whatsappPayload)
+    }
+    if (cafe?.whatsapp) {
+      sendOwnerAlert(cafe.whatsapp, whatsappPayload)
+    }
 
     return NextResponse.json({ data: order, error: null })
   } catch (err: any) {
@@ -62,7 +107,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Update order status — called by kitchen dashboard
 export async function PATCH(req: NextRequest) {
   try {
     const { orderId, status } = await req.json()

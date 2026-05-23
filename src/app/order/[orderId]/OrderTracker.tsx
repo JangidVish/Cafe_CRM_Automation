@@ -3,6 +3,7 @@ import { useOrderStatus } from '@/lib/hooks/useKitchenOrders'
 import type { Order, OrderStatus } from '@/lib/types'
 import { CheckCircle2, Clock, ChefHat, Bell, CircleCheck } from 'lucide-react'
 import Link from 'next/link'
+import WhatsAppPreview from '@/components/shared/WhatsAppPreview'
 
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
   { status: 'confirmed', label: 'Confirmed',   icon: CheckCircle2 },
@@ -140,6 +141,31 @@ export default function OrderTracker({ initialOrder }: Props) {
           ← Back to menu
         </Link>
       </div>
+
+      {/* WhatsApp preview — fires once when order leaves pending */}
+      {(order.status !== 'pending' || order.payment_status === 'paid') && (
+        <WhatsAppPreview
+          cafeName="Sunrise Cafe"
+          autoOpenDelay={800}
+          message={buildWAMessage(order)}
+        />
+      )}
     </div>
+  )
+}
+
+function buildWAMessage(order: Order): string {
+  const items = (order.items ?? [])
+    .map(i => `  • ${i.name} x${i.quantity} — ₹${i.subtotal}`)
+    .join('\n')
+
+  const trackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/order/${order.id}`
+
+  return (
+    `✅ *Order Confirmed!*\n\n` +
+    `🔖 Order: *${order.order_number}*\n\n` +
+    `*Your order:*\n${items}\n\n` +
+    `💰 *Total: ₹${Math.round(order.total_amount)}*\n\n` +
+    `Track live 👇\n${trackUrl}`
   )
 }
