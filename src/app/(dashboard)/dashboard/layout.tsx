@@ -1,25 +1,38 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   ClipboardList,
   UtensilsCrossed,
   BarChart3,
   MonitorPlay,
+  Users,
+  QrCode,
   ChevronRight,
+  LogOut,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard',              label: 'Overview',     icon: LayoutDashboard },
   { href: '/dashboard/orders',       label: 'Orders',       icon: ClipboardList },
   { href: '/dashboard/menu-manager', label: 'Menu',         icon: UtensilsCrossed },
   { href: '/dashboard/analytics',    label: 'Analytics',    icon: BarChart3 },
+  { href: '/dashboard/customers',    label: 'Customers',    icon: Users },
+  { href: '/dashboard/tables',       label: 'Tables & QR',  icon: QrCode },
   { href: '/kitchen',                label: 'Kitchen view', icon: MonitorPlay },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router   = useRouter()
+
+  async function logout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <div className="min-h-screen bg-surface flex">
@@ -53,9 +66,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-ink/5">
-          <p className="text-xs text-ink-faint">Phase 1 · cafe-system</p>
+        {/* Footer + logout */}
+        <div className="px-5 py-4 border-t border-ink/5 space-y-2">
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 text-xs text-ink-faint hover:text-red-500 transition-colors w-full"
+          >
+            <LogOut size={13} />
+            Sign out
+          </button>
+          <p className="text-xs text-ink-faint">Phase 6 · cafe-system</p>
         </div>
       </aside>
 

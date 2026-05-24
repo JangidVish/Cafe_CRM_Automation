@@ -2,48 +2,84 @@ import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { createAdminClient } from '@/lib/supabase/server'
 
-// GET /api/tables?cafeId=xxx — list all tables
-// POST /api/tables — generate QR codes for all tables of a cafe
+// GET  /api/tables?cafeId=xxx          — list all tables
+// POST /api/tables { action:'generate-qr', cafeId, cafeSlug } — generate QR data URLs
+// POST /api/tables { action:'create', cafeId, number, label } — add a new table
+// PATCH /api/tables { tableId, ...fields }                    — update label / toggle is_active
 
 export async function POST(req: NextRequest) {
-  const { cafeId, cafeSlug } = await req.json()
-  const supabase = createAdminClient()
+  try {
+    const body = await req.json()
+    const { action } = body
+    const supabase = createAdminClient()
 
-  const { data: tables, error } = await supabase
-    .from('tables')
-    .select('*')
-    .eq('cafe_id', cafeId)
-    .eq('is_active', true)
+    if (action === 'create') {
+      const { cafeId, number, label, capacity = 4 } = body
+      const { data, error } = await supabase
+        .from('tables')
+        .insert({ cafe_id: cafeId, number, label: label || null, capacity })
+        .select()
+        .single()
+      if (error) throw error
+      return NextResponse.json({ data, error: null })
+    }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // action === 'generate-qr' (default)
+    const { cafeId, cafeSlug } = body
+    const { data: tables, error } = await supabase
+      .from('tables')
+      .select('*')
+      .eq('cafe_id', cafeId)
+      .eq('is_active', true)
+      .order('number')
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    if (error) throw error
 
-  const qrResults = await Promise.all(
-    (tables ?? []).map(async (table) => {
-      const menuUrl = `${appUrl}/menu/${table.number}?cafe=${cafeSlug}`
-      const qrDataUrl = await QRCode.toDataURL(menuUrl, {
-        width: 400,
-        margin: 2,
-        color: { dark: '#1A1A18', light: '#FFFFFF' },
-        errorCorrectionLevel: 'H',
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+    const qrResults = await Promise.all(
+      (tables ?? []).map(async (table) => {
+        const menuUrl = `${appUrl}/menu/${table.number}?cafe=${cafeSlug}`
+        const qrDataUrl = await QRCode.toDataURL(menuUrl, {
+          width: 400,
+          margin: 2,
+          color: { dark: '#1A1A18', light: '#FFFFFF' },
+          errorCorrectionLevel: 'H',
+        })
+        return { tableId: table.id, tableNumber: table.number, label: table.label, menuUrl, qrDataUrl }
       })
+    )
 
-      // Store QR in Supabase Storage (optional — can also use dataURL directly)
-      // const buffer = Buffer.from(qrDataUrl.split(',')[1], 'base64')
-      // await supabase.storage.from('qr-codes').upload(`${cafeSlug}/table-${table.number}.png`, buffer)
+    return NextResponse.json({ data: qrResults, error: null })
+  } catch (err: any) {
+    return NextResponse.json({ data: null, error: err.message }, { status: 500 })
+  }
+}
 
-      return {
-        tableId: table.id,
-        tableNumber: table.number,
-        label: table.label,
-        menuUrl,
-        qrDataUrl,
-      }
-    })
-  )
+export async function PATCH(req: NextRequest) {
+  try {
+    const { tableId, ...fields } = await req.json()
+    if (!tableId) return NextResponse.json({ error: 'tableId required' }, { status: 400 })
 
-  return NextResponse.json({ data: qrResults, error: null })
+    const allowed = ['label', 'is_active', 'capacity', 'number']
+    const update: Record<string, unknown> = {}
+    for (const key of allowed) {
+      if (fields[key] !== undefined) update[key] = fields[key]
+    }
+
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('tables')
+      .update(update)
+      .eq('id', tableId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return NextResponse.json({ data, error: null })
+  } catch (err: any) {
+    return NextResponse.json({ data: null, error: err.message }, { status: 500 })
+  }
 }
 
 export async function GET(req: NextRequest) {

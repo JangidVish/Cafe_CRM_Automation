@@ -123,6 +123,19 @@ export interface OrderItem {
   created_at: string
 }
 
+export interface Customer {
+  id: string
+  cafe_id: string
+  phone: string
+  name: string | null
+  whatsapp: string | null
+  total_orders: number
+  total_spent: number
+  last_visit_at: string | null
+  tags: string[]
+  created_at: string
+}
+
 // ─── Cart Types (client-side only, not in DB) ────────────────
 export interface CartItem {
   menuItem: MenuItem

@@ -12,6 +12,17 @@ interface Props {
   onClose: () => void
 }
 
+function loadRazorpayScript(): Promise<boolean> {
+  if ((window as any).Razorpay) return Promise.resolve(true)
+  return new Promise(resolve => {
+    const s = document.createElement('script')
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    s.onload = () => resolve(true)
+    s.onerror = () => resolve(false)
+    document.body.appendChild(s)
+  })
+}
+
 export default function CartSheet({ cafe, table, onClose }: Props) {
   const { cart, updateQuantity, removeItem, subtotal, clearCart } = useCartStore()
   const [notes, setNotes] = useState('')
@@ -29,7 +40,8 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
   async function placeOrder() {
     setPlacing(true)
     try {
-      const res = await fetch('/api/orders', {
+      // 1. Create our order row
+      const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -50,14 +62,69 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           totalAmount: total,
         }),
       })
-      const { data, error } = await res.json()
-      if (error) throw new Error(error)
+      const { data: order, error: orderErr } = await orderRes.json()
+      if (orderErr) throw new Error(orderErr)
 
-      clearCart()
-      router.push(`/order/${data.id}`)
+      // 2. Cash → straight to order page
+      if (payMethod === 'cash') {
+        clearCart()
+        router.push(`/order/${order.id}`)
+        return
+      }
+
+      // 3. UPI → open Razorpay
+      const loaded = await loadRazorpayScript()
+      if (!loaded) {
+        toast.error('Could not load payment gateway. Try again.')
+        setPlacing(false)
+        return
+      }
+
+      const payRes = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', orderId: order.id, amount: total }),
+      })
+      const { data: payData, error: payErr } = await payRes.json()
+      if (payErr) throw new Error(payErr)
+
+      const rzp = new (window as any).Razorpay({
+        key:         payData.keyId,
+        amount:      payData.amount,
+        currency:    'INR',
+        name:        cafe.name,
+        description: `Table ${table.number}`,
+        order_id:    payData.razorpayOrderId,
+        prefill:     { contact: phone ? `91${phone}` : '' },
+        theme:       { color: '#FF9500' },
+        handler: async (response: any) => {
+          // Verify signature server-side
+          await fetch('/api/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action:             'verify',
+              orderId:            order.id,
+              razorpayOrderId:    response.razorpay_order_id,
+              razorpayPaymentId:  response.razorpay_payment_id,
+              razorpaySignature:  response.razorpay_signature,
+            }),
+          })
+          clearCart()
+          router.push(`/order/${order.id}`)
+        },
+        modal: {
+          ondismiss: () => {
+            // Payment abandoned — still go to order page, WA won't fire (payment_status stays pending)
+            clearCart()
+            router.push(`/order/${order.id}`)
+          },
+        },
+      })
+      rzp.open()
+      setPlacing(false)
     } catch (err) {
       toast.error('Could not place order. Please try again.')
-    } finally {
       setPlacing(false)
     }
   }
@@ -195,7 +262,12 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
             disabled={placing}
             className="w-full bg-brand-400 hover:bg-brand-500 disabled:opacity-60 text-white font-semibold py-4 rounded-2xl text-base transition-colors active:scale-[0.98]"
           >
-            {placing ? 'Placing your order...' : `Place order · ₹${total}`}
+            {placing
+              ? 'Placing your order...'
+              : payMethod === 'upi'
+                ? `Pay ₹${total} via UPI`
+                : `Place order · ₹${total}`
+            }
           </button>
         </div>
       </div>
