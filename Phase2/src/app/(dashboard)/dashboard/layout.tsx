@@ -11,6 +11,8 @@ import {
   QrCode,
   ChevronRight,
   LogOut,
+  Megaphone,
+  Gift,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -20,6 +22,8 @@ const NAV = [
   { href: '/dashboard/menu-manager', label: 'Menu',         icon: UtensilsCrossed },
   { href: '/dashboard/analytics',    label: 'Analytics',    icon: BarChart3 },
   { href: '/dashboard/customers',    label: 'Customers',    icon: Users },
+  { href: '/dashboard/campaigns',    label: 'Campaigns',    icon: Megaphone },
+  { href: '/dashboard/loyalty',      label: 'Loyalty',      icon: Gift },
   { href: '/dashboard/tables',       label: 'Tables & QR',  icon: QrCode },
   { href: '/kitchen',                label: 'Kitchen view', icon: MonitorPlay },
 ]

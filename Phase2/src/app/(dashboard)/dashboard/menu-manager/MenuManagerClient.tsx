@@ -8,12 +8,12 @@ import dynamic from 'next/dynamic'
 const ItemDrawer    = dynamic(() => import('./ItemDrawer'),    { ssr: false })
 const CategoryModal = dynamic(() => import('./CategoryModal'), { ssr: false })
 
-interface Props { initialCategories: MenuCategory[] }
+interface Props { initialCategories: MenuCategory[]; cafeId: string }
 
 type DrawerState = { mode: 'add'; catId: string } | { mode: 'edit'; item: MenuItem }
 type CatModalState = { mode: 'add' } | { mode: 'edit'; cat: MenuCategory }
 
-export default function MenuManagerClient({ initialCategories }: Props) {
+export default function MenuManagerClient({ initialCategories, cafeId }: Props) {
   const [categories,   setCategories]   = useState<MenuCategory[]>(initialCategories)
   const [activeCatId,  setActiveCatId]  = useState<string>(initialCategories[0]?.id ?? '')
   const [drawer,       setDrawer]       = useState<DrawerState | null>(null)
@@ -239,6 +239,7 @@ export default function MenuManagerClient({ initialCategories }: Props) {
           item={drawer.mode === 'edit' ? drawer.item : undefined}
           categoryId={drawer.mode === 'add' ? drawer.catId : drawer.item.category_id}
           categories={categories}
+          cafeId={cafeId}
           onSave={handleItemSaved}
           onClose={() => setDrawer(null)}
         />
@@ -249,6 +250,7 @@ export default function MenuManagerClient({ initialCategories }: Props) {
         <CategoryModal
           mode={catModal.mode}
           cat={catModal.mode === 'edit' ? catModal.cat : undefined}
+          cafeId={cafeId}
           onSave={handleCatSaved}
           onClose={() => setCatModal(null)}
         />

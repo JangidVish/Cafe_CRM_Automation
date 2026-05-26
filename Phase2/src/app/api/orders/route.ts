@@ -8,7 +8,8 @@ export async function POST(req: NextRequest) {
     const {
       cafeId, tableId, items,
       paymentMethod, notes, customerPhone,
-      subtotal, taxAmount, totalAmount,
+      subtotal, taxAmount, discountAmount, totalAmount,
+      pointsRedeemed,
     } = body
 
     const supabase = createAdminClient()
@@ -41,9 +42,10 @@ export async function POST(req: NextRequest) {
         subtotal,
         tax_amount: taxAmount,
         service_charge: 0,
-        discount_amount: 0,
+        discount_amount: discountAmount ?? 0,
         total_amount: totalAmount,
         notes: notes || null,
+        points_redeemed: pointsRedeemed ?? 0,
       })
       .select()
       .single()
@@ -67,6 +69,28 @@ export async function POST(req: NextRequest) {
       .insert(orderItems)
 
     if (itemsError) throw itemsError
+
+    // Deduct redeemed points
+    if (pointsRedeemed && pointsRedeemed > 0 && customerId) {
+      try {
+        const { data: customer } = await supabase
+          .from('customers').select('points_balance').eq('id', customerId).single()
+        if (customer) {
+          const newBal = Math.max(0, (customer.points_balance ?? 0) - pointsRedeemed)
+          await Promise.all([
+            supabase.from('customer_points').insert({
+              cafe_id:     cafeId,
+              customer_id: customerId,
+              order_id:    order.id,
+              type:        'redeem',
+              points:      -pointsRedeemed,
+              balance:     newBal,
+            }),
+            supabase.from('customers').update({ points_balance: newBal }).eq('id', customerId),
+          ])
+        }
+      } catch { /* never fail order creation for points errors */ }
+    }
 
     // Fetch cafe for name + owner whatsapp
     const { data: cafe } = await supabase
@@ -126,6 +150,37 @@ export async function PATCH(req: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Earn loyalty points when order completes
+    if (status === 'completed' && data.customer_id) {
+      try {
+        const [{ data: loyaltyConfig }, { data: customer }] = await Promise.all([
+          supabase.from('loyalty_config').select('*').eq('cafe_id', data.cafe_id).single(),
+          supabase.from('customers').select('points_balance').eq('id', data.customer_id).single(),
+        ])
+
+        if (loyaltyConfig?.is_enabled && customer) {
+          const earned  = Math.floor(Number(data.total_amount) * Number(loyaltyConfig.points_per_rupee))
+          const newBal  = (customer.points_balance ?? 0) + earned
+
+          if (earned > 0) {
+            await Promise.all([
+              supabase.from('customer_points').insert({
+                cafe_id:     data.cafe_id,
+                customer_id: data.customer_id,
+                order_id:    orderId,
+                type:        'earn',
+                points:      earned,
+                balance:     newBal,
+              }),
+              supabase.from('customers').update({ points_balance: newBal }).eq('id', data.customer_id),
+              supabase.from('orders').update({ points_earned: earned }).eq('id', orderId),
+            ])
+          }
+        }
+      } catch { /* never fail the status update for points errors */ }
+    }
+
     return NextResponse.json({ data, error: null })
   } catch (err: any) {
     return NextResponse.json({ data: null, error: err.message }, { status: 500 })

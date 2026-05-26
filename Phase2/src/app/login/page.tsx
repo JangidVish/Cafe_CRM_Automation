@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { Suspense } from 'react'
 import LoginForm from './LoginForm'
 
 export const metadata: Metadata = { title: 'Sign in — Cafe Dashboard' }
@@ -17,11 +19,16 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-surface-raised rounded-3xl border border-ink/5 p-6 shadow-sm">
-          <LoginForm />
+          <Suspense>
+            <LoginForm />
+          </Suspense>
         </div>
 
-        <p className="text-center text-xs text-ink-faint mt-6">
-          cafe-system · Phase 6
+        <p className="text-center text-sm text-ink-muted mt-6">
+          New cafe?{' '}
+          <Link href="/signup" className="text-brand-600 font-medium hover:underline">
+            Create an account
+          </Link>
         </p>
       </div>
     </div>

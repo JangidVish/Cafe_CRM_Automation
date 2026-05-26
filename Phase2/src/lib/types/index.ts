@@ -99,6 +99,8 @@ export interface Order {
   total_amount: number
   notes: string | null
   estimated_mins: number | null
+  points_earned: number
+  points_redeemed: number
   confirmed_at: string | null
   ready_at: string | null
   served_at: string | null
@@ -133,6 +135,52 @@ export interface Customer {
   total_spent: number
   last_visit_at: string | null
   tags: string[]
+  points_balance: number
+  created_at: string
+}
+
+// ─── Phase 3 Types ───────────────────────────────────────────
+export interface OrderRating {
+  id: string
+  cafe_id: string
+  order_id: string
+  rating: number
+  comment: string | null
+  created_at: string
+}
+
+export interface Campaign {
+  id: string
+  cafe_id: string
+  name: string
+  segment: string
+  message: string
+  status: 'draft' | 'sending' | 'sent' | 'failed'
+  scheduled_at: string | null
+  sent_at: string | null
+  sent_count: number
+  failed_count: number
+  created_at: string
+}
+
+export interface LoyaltyConfig {
+  id: string
+  cafe_id: string
+  points_per_rupee: number
+  rupees_per_point: number
+  min_points_to_redeem: number
+  is_enabled: boolean
+}
+
+export interface CustomerPoints {
+  id: string
+  cafe_id: string
+  customer_id: string
+  order_id: string | null
+  type: 'earn' | 'redeem' | 'adjust'
+  points: number
+  balance: number
+  note: string | null
   created_at: string
 }
 
@@ -165,12 +213,19 @@ export interface MenuPageData {
 export interface Database {
   public: {
     Tables: {
-      cafes: { Row: Cafe; Insert: Partial<Cafe>; Update: Partial<Cafe> }
-      tables: { Row: Table; Insert: Partial<Table>; Update: Partial<Table> }
-      menu_categories: { Row: MenuCategory; Insert: Partial<MenuCategory>; Update: Partial<MenuCategory> }
-      menu_items: { Row: MenuItem; Insert: Partial<MenuItem>; Update: Partial<MenuItem> }
-      orders: { Row: Order; Insert: Partial<Order>; Update: Partial<Order> }
-      order_items: { Row: OrderItem; Insert: Partial<OrderItem>; Update: Partial<OrderItem> }
+      cafes:          { Row: Cafe;           Insert: Partial<Cafe>;          Update: Partial<Cafe>          }
+      tables:         { Row: Table;          Insert: Partial<Table>;         Update: Partial<Table>         }
+      menu_categories:{ Row: MenuCategory;   Insert: Partial<MenuCategory>;  Update: Partial<MenuCategory>  }
+      menu_items:     { Row: MenuItem;       Insert: Partial<MenuItem>;      Update: Partial<MenuItem>      }
+      customers:      { Row: Customer;       Insert: Partial<Customer>;      Update: Partial<Customer>      }
+      orders:         { Row: Order;          Insert: Partial<Order>;         Update: Partial<Order>         }
+      order_items:    { Row: OrderItem;      Insert: Partial<OrderItem>;     Update: Partial<OrderItem>     }
+      order_ratings:  { Row: OrderRating;    Insert: Partial<OrderRating>;   Update: Partial<OrderRating>   }
+      campaigns:      { Row: Campaign;       Insert: Partial<Campaign>;      Update: Partial<Campaign>      }
+      loyalty_config: { Row: LoyaltyConfig;  Insert: Partial<LoyaltyConfig>; Update: Partial<LoyaltyConfig> }
+      customer_points:{ Row: CustomerPoints; Insert: Partial<CustomerPoints>;Update: Partial<CustomerPoints>}
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Functions: { [k: string]: { Args: any; Returns: any } }
   }
 }

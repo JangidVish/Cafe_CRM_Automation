@@ -1,21 +1,26 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient, getOwnerCafe } from '@/lib/supabase/server'
 import type { MenuCategory } from '@/lib/types'
+import NoCafeSetup from '@/components/dashboard/NoCafeSetup'
 import MenuManagerClient from './MenuManagerClient'
-
-const DEMO_CAFE_ID = '11111111-1111-1111-1111-111111111111'
 
 export const metadata = { title: 'Menu Manager' }
 
 export default async function MenuManagerPage() {
+  const cafe = await getOwnerCafe()
+  if (!cafe) return <NoCafeSetup />
+
   const supabase = createAdminClient()
 
   const { data: categories } = await supabase
     .from('menu_categories')
     .select('*, items:menu_items(*)')
-    .eq('cafe_id', DEMO_CAFE_ID)
+    .eq('cafe_id', cafe.id)
     .order('sort_order', { ascending: true })
 
   return (
-    <MenuManagerClient initialCategories={(categories ?? []) as MenuCategory[]} />
+    <MenuManagerClient
+      initialCategories={(categories ?? []) as MenuCategory[]}
+      cafeId={cafe.id}
+    />
   )
 }

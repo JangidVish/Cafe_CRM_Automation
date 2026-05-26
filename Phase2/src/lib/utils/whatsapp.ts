@@ -76,6 +76,15 @@ async function sendSessionMessage(phone: string, text: string): Promise<void> {
   }
 }
 
+// Send a generic free-text message (used by campaigns and low-rating alerts)
+export async function sendWhatsApp(phone: string, message: string): Promise<void> {
+  if (!isConfigured()) {
+    console.log('[WhatsApp] Not configured — skipping message to', phone)
+    return
+  }
+  await sendSessionMessage(phone, message)
+}
+
 // Send order confirmation to customer
 export async function sendOrderConfirmation(payload: WhatsAppOrderPayload): Promise<void> {
   if (!isConfigured()) {

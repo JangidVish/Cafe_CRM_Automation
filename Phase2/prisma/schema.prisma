@@ -1,0 +1,277 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────
+enum OrderStatus {
+  pending
+  confirmed
+  making
+  ready
+  served
+  cancelled
+  completed
+
+  @@map("order_status")
+}
+
+enum PaymentMethod {
+  upi
+  card
+  cash
+  unpaid
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+
+  @@map("payment_status")
+}
+
+// ─── Models ─────────────────────────────────────────────────
+model Cafe {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name      String
+  slug      String   @unique
+  logoUrl   String?  @map("logo_url")
+  address   String?
+  phone     String?
+  whatsapp  String?
+  currency  String   @default("INR")
+  timezone  String   @default("Asia/Kolkata")
+  isActive  Boolean  @default(true) @map("is_active")
+  settings  Json     @default("{\"accept_cash\":true,\"accept_upi\":true,\"accept_card\":false,\"tax_percent\":5,\"service_charge_percent\":0,\"show_social_proof\":true,\"languages\":[\"en\",\"hi\"]}")
+  ownerId   String?  @map("owner_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tables         CafeTable[]
+  menuCategories MenuCategory[]
+  menuItems      MenuItem[]
+  customers      Customer[]
+  orders         Order[]
+  orderRatings   OrderRating[]
+  campaigns      Campaign[]
+  loyaltyConfig  LoyaltyConfig?
+  customerPoints CustomerPoints[]
+
+  @@map("cafes")
+}
+
+model CafeTable {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId    String   @map("cafe_id") @db.Uuid
+  number    Int
+  label     String?
+  capacity  Int      @default(4)
+  qrCodeUrl String?  @map("qr_code_url")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe   Cafe    @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([cafeId, number])
+  @@map("tables")
+}
+
+model MenuCategory {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId      String   @map("cafe_id") @db.Uuid
+  name        String
+  nameHi      String?  @map("name_hi")
+  description String?
+  imageUrl    String?  @map("image_url")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe  Cafe       @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  items MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId         String   @map("cafe_id") @db.Uuid
+  categoryId     String   @map("category_id") @db.Uuid
+  name           String
+  nameHi         String?  @map("name_hi")
+  description    String?
+  descriptionHi  String?  @map("description_hi")
+  price          Decimal  @db.Decimal(10, 2)
+  imageUrl       String?  @map("image_url")
+  isVeg          Boolean  @default(true) @map("is_veg")
+  isVegan        Boolean  @default(false) @map("is_vegan")
+  isJain         Boolean  @default(false) @map("is_jain")
+  containsGluten Boolean  @default(true) @map("contains_gluten")
+  containsNuts   Boolean  @default(false) @map("contains_nuts")
+  spiceLevel     Int      @default(0) @map("spice_level")
+  isAvailable    Boolean  @default(true) @map("is_available")
+  isFeatured     Boolean  @default(false) @map("is_featured")
+  sortOrder      Int      @default(0) @map("sort_order")
+  orderCount     Int      @default(0) @map("order_count")
+  prepTimeMins   Int      @default(10) @map("prep_time_mins")
+  upsellItemIds  String[] @default([]) @map("upsell_item_ids")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cafe       Cafe        @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@map("menu_items")
+}
+
+model Customer {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId        String    @map("cafe_id") @db.Uuid
+  phone         String
+  name          String?
+  whatsapp      String?
+  totalOrders   Int       @default(0) @map("total_orders")
+  totalSpent    Decimal   @default(0) @db.Decimal(12, 2) @map("total_spent")
+  lastVisitAt   DateTime? @map("last_visit_at") @db.Timestamptz(6)
+  tags          String[]  @default([])
+  pointsBalance Int       @default(0) @map("points_balance")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe           Cafe             @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  orders         Order[]
+  customerPoints CustomerPoints[]
+
+  @@unique([cafeId, phone])
+  @@map("customers")
+}
+
+model Order {
+  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId            String        @map("cafe_id") @db.Uuid
+  tableId           String        @map("table_id") @db.Uuid
+  customerId        String?       @map("customer_id") @db.Uuid
+  orderNumber       String        @map("order_number")
+  status            OrderStatus   @default(pending)
+  paymentMethod     PaymentMethod @default(unpaid) @map("payment_method")
+  paymentStatus     PaymentStatus @default(pending) @map("payment_status")
+  razorpayOrderId   String?       @map("razorpay_order_id")
+  razorpayPaymentId String?       @map("razorpay_payment_id")
+  subtotal          Decimal       @default(0) @db.Decimal(10, 2)
+  taxAmount         Decimal       @default(0) @db.Decimal(10, 2) @map("tax_amount")
+  serviceCharge     Decimal       @default(0) @db.Decimal(10, 2) @map("service_charge")
+  discountAmount    Decimal       @default(0) @db.Decimal(10, 2) @map("discount_amount")
+  totalAmount       Decimal       @default(0) @db.Decimal(10, 2) @map("total_amount")
+  notes             String?
+  estimatedMins     Int?          @map("estimated_mins")
+  pointsEarned      Int           @default(0) @map("points_earned")
+  pointsRedeemed    Int           @default(0) @map("points_redeemed")
+  confirmedAt       DateTime?     @map("confirmed_at") @db.Timestamptz(6)
+  readyAt           DateTime?     @map("ready_at") @db.Timestamptz(6)
+  servedAt          DateTime?     @map("served_at") @db.Timestamptz(6)
+  completedAt       DateTime?     @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cafe     Cafe         @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  table    CafeTable    @relation(fields: [tableId], references: [id])
+  customer Customer?    @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+  rating   OrderRating?
+  pointsTxn CustomerPoints[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  menuItemId    String   @map("menu_item_id") @db.Uuid
+  name          String
+  price         Decimal  @db.Decimal(10, 2)
+  quantity      Int      @default(1)
+  customisation String?
+  subtotal      Decimal  @db.Decimal(10, 2)
+  status        String   @default("pending")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+// ─── Phase 3 Models ──────────────────────────────────────────
+
+model OrderRating {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId    String   @map("cafe_id") @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe  Cafe  @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_ratings")
+}
+
+model Campaign {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId      String    @map("cafe_id") @db.Uuid
+  name        String
+  segment     String    @default("all")
+  message     String
+  status      String    @default("draft")
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  sentCount   Int       @default(0) @map("sent_count")
+  failedCount Int       @default(0) @map("failed_count")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe Cafe @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@map("campaigns")
+}
+
+model LoyaltyConfig {
+  id                String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId            String  @unique @map("cafe_id") @db.Uuid
+  pointsPerRupee    Decimal @default(0.1) @db.Decimal(5, 2) @map("points_per_rupee")
+  rupeesPerPoint    Decimal @default(0.5) @db.Decimal(5, 2) @map("rupees_per_point")
+  minPointsToRedeem Int     @default(50) @map("min_points_to_redeem")
+  isEnabled         Boolean @default(true) @map("is_enabled")
+
+  cafe Cafe @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_config")
+}
+
+model CustomerPoints {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cafeId     String   @map("cafe_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  orderId    String?  @map("order_id") @db.Uuid
+  type       String
+  points     Int
+  balance    Int
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cafe     Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order?   @relation(fields: [orderId], references: [id])
+
+  @@map("customer_points")
+}

@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Gift } from 'lucide-react'
 import { useCartStore } from '@/lib/hooks/useCart'
 import type { Cafe, Table } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -25,17 +25,46 @@ function loadRazorpayScript(): Promise<boolean> {
 
 export default function CartSheet({ cafe, table, onClose }: Props) {
   const { cart, updateQuantity, removeItem, subtotal, clearCart } = useCartStore()
-  const [notes, setNotes] = useState('')
-  const [phone, setPhone] = useState('')
-  const [payMethod, setPayMethod] = useState<'upi' | 'cash'>('upi')
-  const [placing, setPlacing] = useState(false)
+  const [notes, setNotes]           = useState('')
+  const [phone, setPhone]           = useState('')
+  const [payMethod, setPayMethod]   = useState<'upi' | 'cash'>('upi')
+  const [placing, setPlacing]       = useState(false)
+  const [pointsBalance, setPointsBalance]   = useState(0)
+  const [loyaltyConfig, setLoyaltyConfig]   = useState<{ points_per_rupee: number; rupees_per_point: number; min_points_to_redeem: number; is_enabled: boolean } | null>(null)
+  const [redeemPoints, setRedeemPoints]     = useState(false)
+  const phoneDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
+
+  // Fetch loyalty data when phone number is complete
+  useEffect(() => {
+    if (phoneDebounce.current) clearTimeout(phoneDebounce.current)
+    if (phone.length !== 10) {
+      setPointsBalance(0)
+      setLoyaltyConfig(null)
+      setRedeemPoints(false)
+      return
+    }
+    phoneDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/loyalty?cafeId=${cafe.id}&phone=${phone}`)
+        const { data } = await res.json()
+        if (data) {
+          setLoyaltyConfig(data.config)
+          setPointsBalance(data.balance ?? 0)
+        }
+      } catch { /* ignore */ }
+    }, 600)
+  }, [phone, cafe.id])
 
   if (!cart) return null
 
   const sub = subtotal()
   const tax = Math.round(sub * (cafe.settings.tax_percent / 100))
-  const total = sub + tax
+  const canRedeem = loyaltyConfig?.is_enabled && pointsBalance >= (loyaltyConfig?.min_points_to_redeem ?? 50)
+  const pointsDiscount = redeemPoints && canRedeem
+    ? Math.min(Math.floor(pointsBalance * (loyaltyConfig?.rupees_per_point ?? 0.5)), sub + tax)
+    : 0
+  const total = sub + tax - pointsDiscount
 
   async function placeOrder() {
     setPlacing(true)
@@ -59,6 +88,8 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           customerPhone: phone.trim() || undefined,
           subtotal: sub,
           taxAmount: tax,
+          discountAmount: pointsDiscount,
+          pointsRedeemed: redeemPoints && canRedeem ? pointsBalance : 0,
           totalAmount: total,
         }),
       })
@@ -200,6 +231,29 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           <p className="text-[11px] text-ink-faint mt-1 px-1">Get order updates on WhatsApp</p>
         </div>
 
+        {/* Loyalty points redeem */}
+        {canRedeem && (
+          <div className="px-5 pb-3">
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl border border-brand-200 bg-brand-50 cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Gift size={14} className="text-brand-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-brand-700">
+                    Use {pointsBalance} points (₹{Math.floor(pointsBalance * (loyaltyConfig?.rupees_per_point ?? 0.5))} off)
+                  </p>
+                  <p className="text-[11px] text-brand-500">Your loyalty reward</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={redeemPoints}
+                onChange={e => setRedeemPoints(e.target.checked)}
+                className="accent-brand-500 w-4 h-4"
+              />
+            </label>
+          </div>
+        )}
+
         {/* Notes */}
         <div className="px-5 pb-3">
           <textarea
@@ -250,6 +304,11 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           <div className="flex justify-between text-sm text-ink-muted">
             <span>GST ({cafe.settings.tax_percent}%)</span><span>₹{tax}</span>
           </div>
+          {pointsDiscount > 0 && (
+            <div className="flex justify-between text-sm text-brand-600 font-medium">
+              <span>Points discount</span><span>−₹{pointsDiscount}</span>
+            </div>
+          )}
           <div className="flex justify-between text-base font-semibold text-ink pt-1.5 border-t border-ink/10">
             <span>Total</span><span>₹{total}</span>
           </div>

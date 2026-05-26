@@ -106,8 +106,32 @@ export default function OrderTracker({ initialOrder }: Props) {
                   <span className="text-sm font-semibold">Your order is ready!</span>
                 </div>
               )}
-              {isDone && (
-                <p className="text-sm text-ink-muted">Enjoy your meal!</p>
+              {order.status === 'served' && (
+                <div className="space-y-2 text-center">
+                  <p className="text-sm text-ink-muted">Enjoy your meal!</p>
+                  <a
+                    href={`/rate/${order.id}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    ★ Rate your order
+                  </a>
+                </div>
+              )}
+            {order.status === 'completed' && (
+                <div className="text-center space-y-1">
+                  <p className="text-sm text-ink-muted">Thanks for visiting!</p>
+                  {(order.points_earned ?? 0) > 0 && (
+                    <p className="text-xs text-brand-600 font-semibold">
+                      +{order.points_earned} points earned!
+                    </p>
+                  )}
+                  <a
+                    href={`/rate/${order.id}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    ★ Rate your experience
+                  </a>
+                </div>
               )}
             </div>
           </div>

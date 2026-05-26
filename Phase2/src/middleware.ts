@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isProtected = path.startsWith('/dashboard') || path.startsWith('/kitchen')
-  const isLogin     = path === '/login'
+  const isAuthPage  = path === '/login' || path === '/signup'
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone()
@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isLogin) {
+  if (user && isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
@@ -52,5 +52,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/kitchen/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/kitchen/:path*', '/login', '/signup'],
 }

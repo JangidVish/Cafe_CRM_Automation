@@ -1,10 +1,11 @@
+import { getOwnerCafe } from '@/lib/supabase/server'
 import KitchenDisplay from '@/components/kitchen/KitchenDisplay'
-
-// Hardcoded for demo — in production, read cafeId from auth session
-const DEMO_CAFE_ID = '11111111-1111-1111-1111-111111111111'
+import NoCafeSetup from '@/components/dashboard/NoCafeSetup'
 
 export const metadata = { title: 'Kitchen Display' }
 
-export default function KitchenPage() {
-  return <KitchenDisplay cafeId={DEMO_CAFE_ID} />
+export default async function KitchenPage() {
+  const cafe = await getOwnerCafe()
+  if (!cafe) return <NoCafeSetup />
+  return <KitchenDisplay cafeId={cafe.id} />
 }

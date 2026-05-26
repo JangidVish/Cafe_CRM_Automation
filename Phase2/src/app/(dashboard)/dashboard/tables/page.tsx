@@ -1,24 +1,25 @@
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient, getOwnerCafe } from '@/lib/supabase/server'
 import type { Table } from '@/lib/types'
+import NoCafeSetup from '@/components/dashboard/NoCafeSetup'
 import TablesClient from './TablesClient'
 
-const DEMO_CAFE_ID   = '11111111-1111-1111-1111-111111111111'
-const DEMO_CAFE_SLUG = 'sunrise-cafe'
-
 export default async function TablesPage() {
+  const cafe = await getOwnerCafe()
+  if (!cafe) return <NoCafeSetup />
+
   const supabase = createAdminClient()
 
   const { data: tables } = await supabase
     .from('tables')
     .select('*')
-    .eq('cafe_id', DEMO_CAFE_ID)
+    .eq('cafe_id', cafe.id)
     .order('number')
 
   return (
     <TablesClient
       initialTables={(tables ?? []) as Table[]}
-      cafeId={DEMO_CAFE_ID}
-      cafeSlug={DEMO_CAFE_SLUG}
+      cafeId={cafe.id}
+      cafeSlug={cafe.slug}
     />
   )
 }

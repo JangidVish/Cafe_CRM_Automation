@@ -5,13 +5,12 @@ import type { MenuItem, MenuCategory } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
-const DEMO_CAFE_ID = '11111111-1111-1111-1111-111111111111'
-
 interface Props {
   mode:       'add' | 'edit'
   item?:      MenuItem
   categoryId: string
   categories: MenuCategory[]
+  cafeId:     string
   onSave:     (item: MenuItem) => void
   onClose:    () => void
 }
@@ -33,7 +32,7 @@ async function uploadImage(file: File, cafeId: string): Promise<string | null> {
   return supabase.storage.from('menu-images').getPublicUrl(path).data.publicUrl
 }
 
-export default function ItemDrawer({ mode, item, categoryId, categories, onSave, onClose }: Props) {
+export default function ItemDrawer({ mode, item, categoryId, categories, cafeId, onSave, onClose }: Props) {
   const [name,        setName]        = useState(item?.name ?? '')
   const [nameHi,      setNameHi]      = useState(item?.name_hi ?? '')
   const [description, setDescription] = useState(item?.description ?? '')
@@ -73,7 +72,7 @@ export default function ItemDrawer({ mode, item, categoryId, categories, onSave,
     try {
       let imageUrl = item?.image_url ?? null
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile, DEMO_CAFE_ID)
+        imageUrl = await uploadImage(imageFile, cafeId)
         if (!imageUrl) { setSaving(false); return }
       }
 
@@ -102,7 +101,7 @@ export default function ItemDrawer({ mode, item, categoryId, categories, onSave,
         res = await fetch('/api/menu', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create-item', cafeId: DEMO_CAFE_ID, categoryId: catId, ...payload }),
+          body: JSON.stringify({ action: 'create-item', cafeId, categoryId: catId, ...payload }),
         })
       }
 

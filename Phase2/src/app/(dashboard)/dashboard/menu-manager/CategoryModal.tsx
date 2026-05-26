@@ -4,16 +4,15 @@ import { X, Loader2 } from 'lucide-react'
 import type { MenuCategory } from '@/lib/types'
 import toast from 'react-hot-toast'
 
-const DEMO_CAFE_ID = '11111111-1111-1111-1111-111111111111'
-
 interface Props {
   mode:    'add' | 'edit'
   cat?:    MenuCategory
+  cafeId:  string
   onSave:  (cat: MenuCategory) => void
   onClose: () => void
 }
 
-export default function CategoryModal({ mode, cat, onSave, onClose }: Props) {
+export default function CategoryModal({ mode, cat, cafeId, onSave, onClose }: Props) {
   const [name,   setName]   = useState(cat?.name ?? '')
   const [nameHi, setNameHi] = useState(cat?.name_hi ?? '')
   const [saving, setSaving] = useState(false)
@@ -39,7 +38,7 @@ export default function CategoryModal({ mode, cat, onSave, onClose }: Props) {
         res = await fetch('/api/menu', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create-category', cafeId: DEMO_CAFE_ID, name: name.trim(), name_hi: nameHi.trim() || null }),
+          body: JSON.stringify({ action: 'create-category', cafeId, name: name.trim(), name_hi: nameHi.trim() || null }),
         })
       }
       const { data, error } = await res.json()

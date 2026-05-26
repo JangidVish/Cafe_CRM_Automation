@@ -32,3 +32,19 @@ export function createAdminClient() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 }
+
+// Returns the cafe linked to the currently authenticated user, or null
+export async function getOwnerCafe(): Promise<{ id: string; slug: string; name: string } | null> {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('cafes')
+    .select('id, slug, name')
+    .eq('owner_id', user.id)
+    .single()
+
+  return (data as { id: string; slug: string; name: string } | null) ?? null
+}
