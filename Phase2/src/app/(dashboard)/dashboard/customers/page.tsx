@@ -9,6 +9,19 @@ export default async function CustomersPage() {
 
   const supabase = createAdminClient()
 
+  const { data: cafeRow } = await supabase
+    .from('cafes')
+    .select('settings')
+    .eq('id', cafe.id)
+    .single()
+
+  const s = (cafeRow?.settings as any)?.ltv_tiers ?? {}
+  const ltvTiers = {
+    silver:   typeof s.silver   === 'number' ? s.silver   : 1000,
+    gold:     typeof s.gold     === 'number' ? s.gold     : 5000,
+    platinum: typeof s.platinum === 'number' ? s.platinum : 20000,
+  }
+
   const { data: customers } = await supabase
     .from('customers')
     .select('*')
@@ -38,6 +51,7 @@ export default async function CustomersPage() {
     <CustomersClient
       initialCustomers={(customers ?? []) as Customer[]}
       ordersByCustomer={ordersByCustomer}
+      ltvTiers={ltvTiers}
     />
   )
 }

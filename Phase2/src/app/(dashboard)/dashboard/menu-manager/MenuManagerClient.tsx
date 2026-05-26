@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Eye, EyeOff, Star } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, EyeOff, Star, Loader2 } from 'lucide-react'
 import type { MenuCategory, MenuItem } from '@/lib/types'
 import toast from 'react-hot-toast'
 import dynamic from 'next/dynamic'
@@ -20,6 +20,7 @@ export default function MenuManagerClient({ initialCategories, cafeId }: Props) 
   const [catModal,     setCatModal]     = useState<CatModalState | null>(null)
   const [deletingId,   setDeletingId]   = useState<string | null>(null)
   const [togglingId,   setTogglingId]   = useState<string | null>(null)
+  const [availFilter,  setAvailFilter]  = useState<'all' | 'available' | 'unavailable'>('all')
 
   const activeCat    = categories.find(c => c.id === activeCatId)
   const totalItems   = categories.reduce((s, c) => s + (c.items?.length ?? 0), 0)
@@ -197,6 +198,31 @@ export default function MenuManagerClient({ initialCategories, cafeId }: Props) 
           )}
         </div>
 
+        {/* Availability filter tabs */}
+        {activeCat && (activeCat.items ?? []).length > 0 && (
+          <div className="flex gap-1.5 mb-4">
+            {(['all', 'available', 'unavailable'] as const).map(f => {
+              const allItems = activeCat.items ?? []
+              const count = f === 'all'
+                ? allItems.length
+                : allItems.filter(i => f === 'available' ? i.is_available : !i.is_available).length
+              return (
+                <button
+                  key={f}
+                  onClick={() => setAvailFilter(f)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors capitalize ${
+                    availFilter === f
+                      ? 'bg-brand-400 text-white border-brand-400'
+                      : 'bg-surface-raised text-ink-muted border-ink/10 hover:border-ink/20'
+                  }`}
+                >
+                  {f === 'all' ? `All (${count})` : f === 'available' ? `Available (${count})` : `Sold out (${count})`}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Items grid */}
         {!activeCat ? (
           <div className="flex items-center justify-center h-64 text-ink-faint text-sm">
@@ -213,11 +239,21 @@ export default function MenuManagerClient({ initialCategories, cafeId }: Props) 
               Add first item
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(activeCat.items ?? [])
-              .sort((a, b) => a.sort_order - b.sort_order)
-              .map(item => (
+        ) : (() => {
+          const visibleItems = (activeCat.items ?? [])
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .filter(i =>
+              availFilter === 'available'   ? i.is_available  :
+              availFilter === 'unavailable' ? !i.is_available :
+              true
+            )
+          return visibleItems.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-ink-faint text-sm">
+              No {availFilter === 'available' ? 'available' : 'unavailable'} items in this category
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleItems.map(item => (
                 <ItemCard
                   key={item.id}
                   item={item}
@@ -228,8 +264,9 @@ export default function MenuManagerClient({ initialCategories, cafeId }: Props) 
                   onToggle={() => toggleAvailability(item)}
                 />
               ))}
-          </div>
-        )}
+            </div>
+          )
+        })()}
       </main>
 
       {/* ── Drawer ───────────────────────────────────────────── */}
@@ -300,17 +337,9 @@ function ItemCard({
           <p className="text-xs text-ink-faint line-clamp-2 mb-2 ml-5">{item.description}</p>
         )}
 
-        <div className="flex items-center justify-between mt-auto">
+        <div className="flex items-center justify-between mt-auto mb-2">
           <span className="font-bold text-ink">₹{item.price}</span>
           <div className="flex gap-1">
-            <button
-              onClick={onToggle}
-              disabled={isToggling}
-              title={item.is_available ? 'Mark unavailable' : 'Mark available'}
-              className="p-1.5 rounded-lg hover:bg-surface-overlay text-ink-faint hover:text-ink-muted transition-colors disabled:opacity-40"
-            >
-              {item.is_available ? <Eye size={14} /> : <EyeOff size={14} />}
-            </button>
             <button
               onClick={onEdit}
               className="p-1.5 rounded-lg hover:bg-surface-overlay text-ink-faint hover:text-ink-muted transition-colors"
@@ -326,6 +355,25 @@ function ItemCard({
             </button>
           </div>
         </div>
+
+        {/* Availability toggle — full-width pill */}
+        <button
+          onClick={onToggle}
+          disabled={isToggling}
+          className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors disabled:opacity-40 ${
+            item.is_available
+              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+              : 'bg-red-50 text-red-500 border-red-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200'
+          }`}
+          title={item.is_available ? 'Tap to mark as sold out' : 'Tap to mark as available'}
+        >
+          {isToggling
+            ? <Loader2 size={11} className="animate-spin" />
+            : item.is_available
+              ? <><Eye size={11} /> Available</>
+              : <><EyeOff size={11} /> Sold out</>
+          }
+        </button>
       </div>
     </div>
   )

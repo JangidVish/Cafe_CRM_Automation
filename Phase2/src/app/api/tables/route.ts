@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const proto  = req.headers.get('x-forwarded-proto') ?? 'http'
+    const host   = req.headers.get('host') ?? 'localhost:3000'
+    const appUrl = `${proto}://${host}`
 
     const qrResults = await Promise.all(
       (tables ?? []).map(async (table) => {

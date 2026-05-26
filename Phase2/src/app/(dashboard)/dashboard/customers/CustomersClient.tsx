@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import type { Customer } from '@/lib/types'
-import { Search, ChevronDown, ChevronUp, Pencil, Check, X, Download, Tags, Loader2 } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, Pencil, Check, X, Download, Tags, Loader2, Settings2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const ALL_TAGS = ['vip', 'regular', 'lapsed'] as const
@@ -13,15 +13,13 @@ const TAG_STYLES: Record<CustomerTag, string> = {
   lapsed:  'bg-gray-100 text-gray-500 border-gray-200',
 }
 
-const LTV_TIERS = [
-  { label: 'Platinum', min: 20000, color: 'bg-purple-100 text-purple-700' },
-  { label: 'Gold',     min: 5000,  color: 'bg-yellow-100 text-yellow-700' },
-  { label: 'Silver',   min: 1000,  color: 'bg-slate-100 text-slate-600'   },
-  { label: 'Bronze',   min: 0,     color: 'bg-amber-50 text-amber-700'    },
-]
+interface LtvTiers { silver: number; gold: number; platinum: number }
 
-function getLtvTier(spent: number) {
-  return LTV_TIERS.find(t => spent >= t.min) ?? LTV_TIERS[LTV_TIERS.length - 1]
+function getLtvTier(spent: number, tiers: LtvTiers) {
+  if (spent >= tiers.platinum) return { label: 'Platinum', color: 'bg-purple-100 text-purple-700' }
+  if (spent >= tiers.gold)     return { label: 'Gold',     color: 'bg-yellow-100 text-yellow-700' }
+  if (spent >= tiers.silver)   return { label: 'Silver',   color: 'bg-slate-100 text-slate-600'   }
+  return                              { label: 'Bronze',   color: 'bg-amber-50 text-amber-700'    }
 }
 
 interface RecentOrder {
@@ -35,6 +33,7 @@ interface RecentOrder {
 interface Props {
   initialCustomers: Customer[]
   ordersByCustomer: Record<string, RecentOrder[]>
+  ltvTiers: LtvTiers
 }
 
 function maskPhone(phone: string) {
@@ -47,7 +46,7 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function CustomersClient({ initialCustomers, ordersByCustomer }: Props) {
+export default function CustomersClient({ initialCustomers, ordersByCustomer, ltvTiers }: Props) {
   const [customers, setCustomers]   = useState<Customer[]>(initialCustomers)
   const [search, setSearch]         = useState('')
   const [tagFilter, setTagFilter]   = useState<CustomerTag | 'all'>('all')
@@ -56,6 +55,12 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer }: 
   const [editName, setEditName]     = useState('')
   const [saving, setSaving]         = useState<string | null>(null)
   const [autoTagging, setAutoTagging] = useState(false)
+
+  // LTV tier config
+  const [activeTiers, setActiveTiers]     = useState<LtvTiers>(ltvTiers)
+  const [showTierConfig, setShowTierConfig] = useState(false)
+  const [tierEdit, setTierEdit]           = useState<LtvTiers>(ltvTiers)
+  const [savingTiers, setSavingTiers]     = useState(false)
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -137,15 +142,47 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer }: 
     window.location.href = '/api/customers/export'
   }
 
+  async function saveTierConfig() {
+    setSavingTiers(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ltv_tiers: tierEdit }),
+      })
+      const { error } = await res.json()
+      if (error) throw new Error(error)
+      setActiveTiers(tierEdit)
+      setShowTierConfig(false)
+      toast.success('Tier thresholds saved')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Save failed')
+    } finally {
+      setSavingTiers(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Customers</h1>
           <p className="text-ink-muted text-sm mt-0.5">CRM — all customers who shared their number</p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => { setTierEdit(activeTiers); setShowTierConfig(v => !v) }}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border rounded-xl transition-colors ${
+              showTierConfig
+                ? 'bg-brand-50 text-brand-700 border-brand-300'
+                : 'border-ink/10 text-ink-muted hover:border-ink/20 hover:text-ink'
+            }`}
+            title="Configure tier thresholds"
+          >
+            <Settings2 size={12} />
+            Tiers
+          </button>
           <button
             onClick={runAutoTag}
             disabled={autoTagging}
@@ -163,6 +200,55 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer }: 
           </button>
         </div>
       </div>
+
+      {/* Tier config panel */}
+      {showTierConfig && (
+        <div className="bg-surface-raised border border-brand-200 rounded-2xl p-4 mb-5">
+          <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">
+            LTV Tier Thresholds (minimum total spend)
+          </p>
+          <div className="flex flex-wrap gap-4 items-end">
+            {([
+              { key: 'silver'  , label: 'Silver',   color: 'text-slate-600'  },
+              { key: 'gold'    , label: 'Gold',     color: 'text-yellow-600' },
+              { key: 'platinum', label: 'Platinum', color: 'text-purple-600' },
+            ] as const).map(({ key, label, color }) => (
+              <div key={key}>
+                <label className={`text-xs font-semibold block mb-1 ${color}`}>{label}</label>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-ink-faint">₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={tierEdit[key]}
+                    onChange={e => setTierEdit(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                    className="w-24 text-sm border border-ink/10 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400 bg-surface"
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <button
+                onClick={saveTierConfig}
+                disabled={savingTiers}
+                className="flex items-center gap-1.5 px-4 py-2 bg-brand-400 text-white text-xs font-semibold rounded-xl hover:bg-brand-500 disabled:opacity-60 transition-colors"
+              >
+                {savingTiers ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                Save
+              </button>
+              <button
+                onClick={() => setShowTierConfig(false)}
+                className="px-3 py-2 text-xs text-ink-muted hover:text-ink transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-ink-faint mt-3">
+            Bronze = ₹0+ · Silver = ₹{activeTiers.silver.toLocaleString()}+ · Gold = ₹{activeTiers.gold.toLocaleString()}+ · Platinum = ₹{activeTiers.platinum.toLocaleString()}+
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -230,7 +316,7 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer }: 
                 const isEditing  = editingId === customer.id
                 const isSaving   = saving === customer.id
                 const recentOrders = ordersByCustomer[customer.id] ?? []
-                const tier = getLtvTier(customer.total_spent)
+                const tier = getLtvTier(customer.total_spent, activeTiers)
 
                 return (
                   <>
