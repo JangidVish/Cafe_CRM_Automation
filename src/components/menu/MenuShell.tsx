@@ -57,18 +57,22 @@ export default function MenuShell({ data }: Props) {
             <h2 className="font-display text-xl font-semibold text-ink mb-4 pt-4">
               {lang === 'hi' && cat.name_hi ? cat.name_hi : cat.name}
             </h2>
-            <div className="space-y-3">
-              {(cat.items ?? [])
-                .sort((a, b) => b.order_count - a.order_count)
-                .map((item: MenuItem) => (
-                  <MenuItemCard
-                    key={item.id}
-                    item={item}
-                    lang={lang}
-                    showSocialProof={cafe.settings.show_social_proof}
-                  />
-                ))}
-            </div>
+            {(() => {
+                const sorted = [...(cat.items ?? [])].sort((a, b) => b.order_count - a.order_count)
+                const hasImages = sorted.some(i => i.image_url)
+                return (
+                  <div className={hasImages ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+                    {sorted.map((item: MenuItem) => (
+                      <MenuItemCard
+                        key={item.id}
+                        item={item}
+                        lang={lang}
+                        showSocialProof={cafe.settings.show_social_proof}
+                      />
+                    ))}
+                  </div>
+                )
+              })()}
           </section>
         ))}
       </main>
