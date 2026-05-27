@@ -58,7 +58,7 @@ async function updateStatus(orderId: string, status: OrderStatus) {
 interface Props { cafeId: string }
 
 export default function KitchenDisplay({ cafeId }: Props) {
-  const { orders, loading } = useKitchenOrders(cafeId)
+  const { orders, loading, connected } = useKitchenOrders(cafeId)
 
   const columns: Record<string, Order[]> = {
     pending:   orders.filter(o => o.status === 'pending'),
@@ -88,11 +88,23 @@ export default function KitchenDisplay({ cafeId }: Props) {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-display font-bold">Kitchen Display</h1>
         <div className="flex items-center gap-3">
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping-slow absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-          </span>
-          <span className="text-sm text-gray-400">Live</span>
+          {connected ? (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-sm text-gray-400">Live</span>
+            </>
+          ) : (
+            <>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              <span className="text-sm text-amber-400">Reconnecting…</span>
+            </>
+          )}
           <span className="text-sm text-gray-500">{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>

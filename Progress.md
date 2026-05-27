@@ -160,38 +160,49 @@
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 105 | Manual tag toggle UI (VIP / Regular / Lapsed) | ✅ | Built in Customers dashboard |
-| 106 | Auto-tagging rules engine | ⬜ | e.g. VIP if spent > ₹5000, Lapsed if no visit in 30 days |
+| 106 | Auto-tagging rules engine | ✅ | `auto_tag_customers()` SQL function + "Auto-tag" button. Run `004_auto_tagging.sql` |
 | 107 | Scheduled job to re-evaluate tags | ⬜ | Supabase Edge Function or cron |
-| 108 | Customer lifetime value (LTV) display | ⬜ | Derived from `total_spent`, needs UI card |
-| 109 | Customer export to CSV | ⬜ | Download button in Customers page |
+| 108 | Customer LTV tier badge (Bronze/Silver/Gold/Platinum) | ✅ | Pure UI, computed from `total_spent` in `CustomersClient.tsx` |
+| 109 | Customer export to CSV | ✅ | `GET /api/customers/export` — browser download with all fields |
 
 ### 3.3 WhatsApp Campaign Automation
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 110 | Campaign builder UI | ⬜ | Select segment → write message → schedule |
-| 111 | "We miss you" campaign (Lapsed customers) | ⬜ | Trigger: no visit in 30 days |
-| 112 | "You're a VIP" reward campaign | ⬜ | Trigger: crossed spend threshold |
-| 113 | Festival / seasonal offer blast | ⬜ | Manual one-time campaign |
-| 114 | Post-order feedback request (WhatsApp) | ⬜ | Send survey link 30 mins after "Served" |
+| 110 | Campaign builder UI | ✅ | `/dashboard/campaigns` — drawer form, segment selector, WhatsApp preview |
+| 111 | Campaign send to segment | ✅ | `POST /api/campaigns/[id]/send` — personalises `{name}`, tracks sent/failed counts |
+| 112 | Campaign segment counts | ✅ | Live count shown in drawer for All/VIP/Regular/Lapsed |
+| 113 | Campaign history list | ✅ | Shows status, sent count, date |
+| 114 | `sendWhatsApp` generic utility | ✅ | Added to `whatsapp.ts` for campaigns + low-rating alerts |
 | 115 | Birthday / anniversary greetings | ⬜ | Requires DOB field on customer (not in schema yet) |
-| 116 | Campaign analytics (sent / delivered / replies) | ⬜ | Wati webhook for status callbacks |
+| 116 | Campaign delivery analytics (Wati webhooks) | ⬜ | Wati webhook for status callbacks |
 
 ### 3.4 Loyalty System
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 117 | Loyalty points schema | ⬜ | `customer_points` table with transaction log |
-| 118 | Points earn on order (e.g. 1 pt per ₹10) | ⬜ | Trigger or API logic |
-| 119 | Points redeem at checkout | ⬜ | Discount applied, balance deducted |
-| 120 | Loyalty card / balance display for customer | ⬜ | On order tracking page or via WhatsApp |
-| 121 | Points balance in owner dashboard | ⬜ | Per-customer view |
+| 117 | Loyalty points schema | ✅ | `loyalty_config` + `customer_points` tables — `007_loyalty_points.sql` |
+| 118 | Points earn on order completion | ✅ | Auto-calculated in `PATCH /api/orders` when status → `completed` |
+| 119 | Points redeem at checkout | ✅ | CartSheet fetches balance, shows toggle if ≥ min threshold |
+| 120 | Points balance on order tracker | ✅ | Shows "+X points earned!" on completed orders |
+| 121 | Points balance in owner dashboard | ✅ | Column in Customers table, loyalty config at `/dashboard/loyalty` |
+| 122 | Loyalty settings page | ✅ | `/dashboard/loyalty` — earn rate, redeem rate, min points, enable toggle |
 
 ### 3.5 Feedback & Reviews
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 122 | Post-order rating page (`/rate/[orderId]`) | ⬜ | 1–5 stars + optional text |
-| 123 | Ratings stored in DB | ⬜ | `order_ratings` table |
-| 124 | Rating summary in analytics | ⬜ | Average score, recent reviews |
-| 125 | Bad rating alert to owner (WhatsApp) | ⬜ | Notify if rating ≤ 2 stars |
+| 123 | Post-order rating page (`/rate/[orderId]`) | ✅ | Public page — 1–5 stars, optional comment, "already rated" guard |
+| 124 | Ratings stored in DB | ✅ | `order_ratings` table — `005_order_ratings.sql` |
+| 125 | Rating summary in analytics | ✅ | 4th summary card "Avg rating" + recent reviews section |
+| 126 | Bad rating alert to owner (WhatsApp) | ✅ | Fires in `POST /api/ratings` if rating ≤ 2 |
+| 127 | "Rate your order" button on tracker | ✅ | Shown when order status is `served` or `completed` |
+
+### 3.6 Prisma ORM Integration
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 128 | Prisma schema (`prisma/schema.prisma`) | ✅ | Full schema — all Phase 1/2/3 tables + Phase 3 models |
+| 129 | Prisma seed (`prisma/seed.ts`) | ✅ | TypeScript seed — Sunrise Cafe, 10 items, 3 customers, loyalty config |
+| 130 | Prisma singleton client (`src/lib/prisma.ts`) | ✅ | Dev singleton pattern |
+| 131 | Prisma scripts in `package.json` | ✅ | `db:push`, `db:studio`, `db:seed`, `db:generate` |
+| 132 | Prisma v5 (downgraded from v7 incompatible) | ✅ | v7 requires adapter pattern — v5 stable with schema url |
 
 ---
 
@@ -218,7 +229,7 @@
 ### 4.3 Multi-Cafe & Staff Management
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 136 | Owner → cafe mapping table | ⬜ | Replace hardcoded DEMO_CAFE_ID across entire dashboard |
+| 136 | Owner → cafe mapping table | ✅ | `getOwnerCafe()` via `owner_id` on cafes table — replaces all DEMO_CAFE_ID usage |
 | 137 | Multi-location support (same owner, multiple cafes) | ⬜ | Selector in dashboard header |
 | 138 | Staff roles (owner / manager / kitchen / waiter) | ⬜ | `cafe_staff` table with role ENUM |
 | 139 | Role-based access control | ⬜ | Kitchen staff sees KDS only, manager sees orders + analytics |
