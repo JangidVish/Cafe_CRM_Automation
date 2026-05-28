@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { X, Upload, Loader2, Flame } from 'lucide-react'
+import { X, Upload, Loader2, Flame, Sparkles } from 'lucide-react'
 import type { MenuItem, MenuCategory } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
@@ -46,6 +46,7 @@ export default function ItemDrawer({ mode, item, categoryId, categories, cafeId,
   const [imagePreview,setImagePreview]= useState<string | null>(item?.image_url ?? null)
   const [imageFile,   setImageFile]   = useState<File | null>(null)
   const [saving,      setSaving]      = useState(false)
+  const [enhancing,   setEnhancing]   = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -55,6 +56,27 @@ export default function ItemDrawer({ mode, item, categoryId, categories, cafeId,
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  async function enhanceDescription() {
+    if (!name.trim()) { toast.error('Enter item name first'); return }
+    setEnhancing(true)
+    try {
+      const catName = categories.find(c => c.id === catId)?.name ?? ''
+      const res = await fetch('/api/menu/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), description, category: catName }),
+      })
+      const { data, error } = await res.json()
+      if (error) throw new Error(error)
+      setDescription(data.description)
+      toast.success('Description enhanced!')
+    } catch (err: any) {
+      toast.error(err.message ?? 'AI enhance failed')
+    } finally {
+      setEnhancing(false)
+    }
+  }
 
   function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -200,7 +222,19 @@ export default function ItemDrawer({ mode, item, categoryId, categories, cafeId,
           </Field>
 
           {/* Description */}
-          <Field label="Description">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Description</label>
+              <button
+                type="button"
+                onClick={enhanceDescription}
+                disabled={enhancing || !name.trim()}
+                className="flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:text-brand-600 disabled:opacity-40 transition-colors"
+              >
+                {enhancing ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                {enhancing ? 'Enhancing…' : 'Enhance with AI'}
+              </button>
+            </div>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -208,7 +242,7 @@ export default function ItemDrawer({ mode, item, categoryId, categories, cafeId,
               rows={2}
               className={`${inputCls} resize-none`}
             />
-          </Field>
+          </div>
 
           {/* Category */}
           <Field label="Category">

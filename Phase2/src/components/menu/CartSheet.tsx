@@ -1,14 +1,15 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { X, Gift, Tag, Check, Loader2 } from 'lucide-react'
+import { X, Gift, Tag, Check, Loader2, Plus, Sparkles } from 'lucide-react'
 import { useCartStore } from '@/lib/hooks/useCart'
-import type { Cafe, Table } from '@/lib/types'
+import type { Cafe, Table, MenuItem } from '@/lib/types'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 
 interface Props {
   cafe: Cafe
   table: Table
+  allItems: MenuItem[]
   onClose: () => void
 }
 
@@ -23,12 +24,15 @@ function loadRazorpayScript(): Promise<boolean> {
   })
 }
 
-export default function CartSheet({ cafe, table, onClose }: Props) {
-  const { cart, updateQuantity, removeItem, subtotal, clearCart } = useCartStore()
+export default function CartSheet({ cafe, table, allItems, onClose }: Props) {
+  const { cart, updateQuantity, removeItem, addItem, subtotal, clearCart } = useCartStore()
   const [notes, setNotes]           = useState('')
   const [phone, setPhone]           = useState('')
   const [payMethod, setPayMethod]   = useState<'upi' | 'cash'>('upi')
   const [placing, setPlacing]       = useState(false)
+
+  // Upsell & combos
+  const [suggestions, setSuggestions] = useState<MenuItem[]>([])
 
   // Loyalty
   const [pointsBalance, setPointsBalance]   = useState(0)
@@ -44,6 +48,41 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
   const [applyingPromo, setApplyingPromo] = useState(false)
 
   const router = useRouter()
+
+  // Build suggestions: upsell_item_ids from cart items + combos from API
+  useEffect(() => {
+    if (!cart || cart.items.length === 0) { setSuggestions([]); return }
+
+    const cartItemIds = new Set(cart.items.map(i => i.menuItem.id))
+
+    // Static upsells first (from upsell_item_ids)
+    const upsellIds = new Set(cart.items.flatMap(i => i.menuItem.upsell_item_ids ?? []))
+    const staticUpsells = allItems.filter(
+      item => upsellIds.has(item.id) && !cartItemIds.has(item.id) && item.is_available
+    )
+
+    if (staticUpsells.length >= 3) {
+      setSuggestions(staticUpsells.slice(0, 3))
+      return
+    }
+
+    // Fill the rest from combo API
+    const itemIds = [...cartItemIds].join(',')
+    fetch(`/api/menu/combos?cafeId=${cafe.id}&itemIds=${itemIds}`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (!data?.length) { setSuggestions(staticUpsells); return }
+        const combined = [...staticUpsells]
+        for (const item of data) {
+          if (!cartItemIds.has(item.id) && !combined.find(i => i.id === item.id)) {
+            combined.push(item)
+          }
+          if (combined.length >= 3) break
+        }
+        setSuggestions(combined)
+      })
+      .catch(() => setSuggestions(staticUpsells))
+  }, [cart?.items.length, cafe.id])
 
   // Fetch loyalty data when phone number is complete
   useEffect(() => {
@@ -246,6 +285,35 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
             </div>
           ))}
         </div>
+
+        {/* Suggestions */}
+        {suggestions.length > 0 && (
+          <div className="px-5 pb-3">
+            <p className="text-[11px] text-ink-faint uppercase tracking-wide font-semibold mb-2 flex items-center gap-1.5">
+              <Sparkles size={11} />
+              Customers also ordered
+            </p>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {suggestions.map(item => (
+                <div key={item.id} className="flex-shrink-0 w-36 bg-surface-overlay rounded-xl p-2.5 border border-ink/5">
+                  <p className="text-xs font-medium text-ink leading-tight line-clamp-2">{item.name}</p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-xs font-semibold text-brand-600">₹{item.price}</span>
+                    <button
+                      onClick={() => {
+                        addItem(item, 1)
+                        toast.success(`${item.name} added`)
+                      }}
+                      className="w-6 h-6 rounded-full bg-brand-400 flex items-center justify-center hover:bg-brand-500 transition-colors"
+                    >
+                      <Plus size={12} className="text-white" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Phone */}
         <div className="px-5 pb-3">

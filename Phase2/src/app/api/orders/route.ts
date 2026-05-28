@@ -133,8 +133,21 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { orderId, status } = await req.json()
+    const body = await req.json()
+    const { orderId, status, billRequested } = body
     const supabase = createAdminClient()
+
+    // Bill request is a separate, lighter update
+    if (billRequested !== undefined) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ bill_requested: billRequested })
+        .eq('id', orderId)
+        .select()
+        .single()
+      if (error) throw error
+      return NextResponse.json({ data, error: null })
+    }
 
     const updateData: Record<string, any> = { status }
     if (status === 'confirmed') updateData.confirmed_at = new Date().toISOString()

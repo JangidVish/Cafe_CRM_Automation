@@ -23,6 +23,7 @@ export default async function SettingsPage() {
       serviceChargePercent={typeof settings.service_charge_percent === 'number' ? settings.service_charge_percent : 0}
       taxPercent={typeof settings.tax_percent === 'number' ? settings.tax_percent : 5}
       promoCodes={Array.isArray(settings.promo_codes) ? settings.promo_codes : []}
+      city={typeof settings.city === 'string' ? settings.city : ''}
     />
   )
 }

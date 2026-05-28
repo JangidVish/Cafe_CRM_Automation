@@ -22,7 +22,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const [{ data: orders }, { data: ratingsData }] = await Promise.all([
     supabase
       .from('orders')
-      .select('*, items:order_items(*)')
+      .select('id, total_amount, payment_status, created_at, items:order_items(*)')
       .eq('cafe_id', cafe.id)
       .gte('created_at', startOfDay(subDays(today, rangeDays - 1)).toISOString())
       .lte('created_at', endOfDay(today).toISOString())
@@ -77,6 +77,28 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const totalOrders   = allOrders.length
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
+  // Category revenue breakdown
+  const orderIds = allOrders.map(o => o.id)
+  let categoryRevenue: { name: string; revenue: number }[] = []
+  if (orderIds.length > 0) {
+    const { data: catData } = await supabase
+      .from('order_items')
+      .select('subtotal, menu_items(menu_categories(name))')
+      .in('order_id', orderIds)
+    if (catData) {
+      const catMap: Record<string, number> = {}
+      for (const row of catData) {
+        const name = (row as any).menu_items?.menu_categories?.name ?? 'Uncategorised'
+        catMap[name] = (catMap[name] ?? 0) + Number(row.subtotal)
+      }
+      categoryRevenue = Object.entries(catMap)
+        .map(([name, revenue]) => ({ name, revenue }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 6)
+    }
+  }
+  const maxCatRevenue = Math.max(...categoryRevenue.map(c => c.revenue), 1)
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -84,7 +106,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <h1 className="font-display text-2xl font-bold text-ink">Analytics</h1>
           <p className="text-ink-muted text-sm mt-0.5">Last {rangeDays} days</p>
         </div>
-        <AnalyticsRangeNav current={rangeDays} />
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/analytics/report?months=6"
+            className="text-xs font-semibold text-ink-muted border border-ink/15 hover:border-ink/30 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            ↓ CSV Report
+          </a>
+          <AnalyticsRangeNav current={rangeDays} />
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -172,6 +202,29 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           )}
         </div>
       </div>
+
+      {/* Category revenue breakdown */}
+      {categoryRevenue.length > 0 && (
+        <div className="bg-surface-raised rounded-2xl border border-ink/5 p-5">
+          <h2 className="font-display font-semibold text-ink mb-4">Revenue by category ({rangeDays} days)</h2>
+          <div className="space-y-3">
+            {categoryRevenue.map(cat => (
+              <div key={cat.name}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-ink">{cat.name}</span>
+                  <span className="text-xs text-ink-muted">₹{Math.round(cat.revenue).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="h-1.5 bg-surface-overlay rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-400 rounded-full"
+                    style={{ width: `${(cat.revenue / maxCatRevenue) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent reviews */}
       {ratings.length > 0 && (

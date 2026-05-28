@@ -48,10 +48,33 @@ export default async function MenuPage({ params, searchParams }: Props) {
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 
+  // Fetch weather if cafe has a city configured in settings
+  let weather = null
+  const city = (cafe.settings as any)?.city
+  const weatherKey = process.env.OPENWEATHER_API_KEY
+  if (city && weatherKey) {
+    try {
+      const wr = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${weatherKey}&units=metric`,
+        { next: { revalidate: 300 } }
+      )
+      if (wr.ok) {
+        const wj = await wr.json()
+        weather = {
+          temp:        Math.round(wj.main.temp),
+          feels_like:  Math.round(wj.main.feels_like),
+          condition:   wj.weather[0].main as string,
+          description: wj.weather[0].description as string,
+        }
+      }
+    } catch { /* weather is optional, never block the menu */ }
+  }
+
   const pageData: MenuPageData = {
     cafe,
     table,
     categories: categories ?? [],
+    weather,
   }
 
   return <MenuShell data={pageData} />

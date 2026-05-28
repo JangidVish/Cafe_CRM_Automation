@@ -1,9 +1,11 @@
 'use client'
+import { useState } from 'react'
 import { useOrderStatus } from '@/lib/hooks/useKitchenOrders'
 import type { Order, OrderStatus } from '@/lib/types'
-import { CheckCircle2, Clock, ChefHat, Bell, CircleCheck } from 'lucide-react'
+import { CheckCircle2, Clock, ChefHat, Bell, CircleCheck, CreditCard, History } from 'lucide-react'
 import Link from 'next/link'
 import WhatsAppPreview from '@/components/shared/WhatsAppPreview'
+import toast from 'react-hot-toast'
 
 const STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
   { status: 'confirmed', label: 'Confirmed',   icon: CheckCircle2 },
@@ -23,10 +25,28 @@ interface Props { initialOrder: Order }
 export default function OrderTracker({ initialOrder }: Props) {
   const live = useOrderStatus(initialOrder.id)
   const order = live ?? initialOrder
+  const [requestingBill, setRequestingBill] = useState(false)
 
   const isCancelled = order.status === 'cancelled'
   const isDone = order.status === 'completed' || order.status === 'served'
   const currentIdx = stepIndex(order.status)
+  const canRequestBill = ['confirmed', 'making', 'ready', 'served'].includes(order.status)
+
+  async function requestBill() {
+    setRequestingBill(true)
+    try {
+      await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, billRequested: true }),
+      })
+      toast.success('Bill requested! Staff will be with you shortly.')
+    } catch {
+      toast.error('Could not request bill. Please ask staff directly.')
+    } finally {
+      setRequestingBill(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center px-4 py-10">
@@ -157,13 +177,41 @@ export default function OrderTracker({ initialOrder }: Props) {
           </div>
         </div>
 
-        {/* Back to menu */}
-        <Link
-          href="/menu/1?cafe=sunrise-cafe"
-          className="block w-full text-center text-sm text-ink-muted hover:text-ink py-3 transition-colors"
-        >
-          ← Back to menu
-        </Link>
+        {/* Bill request */}
+        {canRequestBill && (
+          order.bill_requested ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium py-3">
+              <CreditCard size={15} />
+              Bill requested — staff is on the way
+            </div>
+          ) : (
+            <button
+              onClick={requestBill}
+              disabled={requestingBill}
+              className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-ink border border-ink/15 hover:border-ink/30 rounded-2xl py-3 transition-colors disabled:opacity-50 mb-2"
+            >
+              <CreditCard size={15} />
+              {requestingBill ? 'Requesting…' : 'Request bill'}
+            </button>
+          )
+        )}
+
+        {/* Back to menu + history */}
+        <div className="flex items-center justify-between px-1">
+          <Link
+            href={`/menu/1?cafe=sunrise-cafe`}
+            className="text-sm text-ink-muted hover:text-ink py-3 transition-colors"
+          >
+            ← Back to menu
+          </Link>
+          <a
+            href={`/history?cafeId=${order.cafe_id}`}
+            className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink py-3 transition-colors"
+          >
+            <History size={14} />
+            Order history
+          </a>
+        </div>
       </div>
 
       {/* WhatsApp preview — fires once when order leaves pending */}

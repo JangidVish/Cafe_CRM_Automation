@@ -211,18 +211,18 @@
 ### 4.1 AI-Powered Features
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 126 | Upsell recommendations (schema-ready) | ⬜ | `upsell_item_ids` column exists — needs ML or rule-based logic + UI |
-| 127 | Weather-based menu suggestions | ⬜ | `OPENWEATHER_API_KEY` placeholder in `.env.local.example` |
+| 126 | Upsell recommendations (schema-ready) | ✅ | CartSheet shows upsell items from `upsell_item_ids` + combo API fallback |
+| 127 | Weather-based menu suggestions | ✅ | OpenWeather fetch in menu page server component; banner in MenuShell; city configured in Settings |
 | 128 | Demand forecasting (predict busy hours) | ⬜ | Based on historical `orders` data |
-| 129 | AI-generated menu descriptions | ⬜ | Claude API to enhance item descriptions |
-| 130 | Smart combo suggestions at checkout | ⬜ | "Customers also ordered…" based on order history |
+| 129 | AI-generated menu descriptions | ✅ | `POST /api/menu/enhance` → Claude Haiku; "Enhance with AI" button in ItemDrawer; needs ANTHROPIC_API_KEY |
+| 130 | Smart combo suggestions at checkout | ✅ | `GET /api/menu/combos` co-occurrence SQL; shown in CartSheet "Customers also ordered" row |
 
 ### 4.2 Advanced Reporting
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 131 | Analytics date range picker (30 / 90 days) | ⬜ | Currently hard-capped at 7 days |
-| 132 | Monthly / quarterly revenue reports | ⬜ | PDF or CSV export |
-| 133 | Category-level revenue breakdown | ⬜ | Pie / donut chart |
+| 131 | Analytics date range picker (30 / 90 days) | ✅ | Done in Phase 2 session |
+| 132 | Monthly / quarterly revenue reports | ✅ | `GET /api/analytics/report?months=6` — CSV download from analytics page |
+| 133 | Category-level revenue breakdown | ✅ | Horizontal bar chart in analytics page; joins order_items → menu_items → menu_categories |
 | 134 | Staff performance metrics | ⬜ | Orders served per shift |
 | 135 | Inventory tracking (items sold vs stock) | ⬜ | New `inventory` table required |
 
@@ -239,10 +239,10 @@
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 141 | Progressive Web App (PWA) | ⬜ | Installable on customer phones, offline menu cache |
-| 142 | Order history for returning customers | ⬜ | Phone OTP → see past orders |
-| 143 | Reorder from previous order | ⬜ | One-tap re-add last order to cart |
+| 142 | Order history for returning customers | ✅ | `/history?cafeId=X` — phone lookup, shows last 20 orders; linked from order tracker |
+| 143 | Reorder from previous order | ✅ | "Reorder" button in history page adds all items to cart |
 | 144 | Pre-order / scheduled orders | ⬜ | "Ready at 1pm" flow |
-| 145 | Table-side bill request | ⬜ | Customer taps "Request bill" → notifies waiter |
+| 145 | Table-side bill request | ✅ | `bill_requested` column on orders; button in OrderTracker; amber badge in KDS |
 
 ### 4.5 Integrations & DevOps
 | # | Task | Status | Notes |

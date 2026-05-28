@@ -15,11 +15,13 @@ interface Props {
   serviceChargePercent: number
   taxPercent: number
   promoCodes: PromoCode[]
+  city: string
 }
 
-export default function SettingsClient({ cafeId, serviceChargePercent, taxPercent, promoCodes: initial }: Props) {
+export default function SettingsClient({ cafeId, serviceChargePercent, taxPercent, promoCodes: initial, city: initialCity }: Props) {
   const [svcCharge, setSvcCharge]   = useState(serviceChargePercent)
   const [taxPct, setTaxPct]         = useState(taxPercent)
+  const [city, setCity]             = useState(initialCity)
   const [savingGeneral, setSavingGeneral] = useState(false)
 
   const [promos, setPromos]         = useState<PromoCode[]>(initial)
@@ -32,7 +34,7 @@ export default function SettingsClient({ cafeId, serviceChargePercent, taxPercen
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ service_charge_percent: svcCharge, tax_percent: taxPct }),
+        body: JSON.stringify({ service_charge_percent: svcCharge, tax_percent: taxPct, city: city.trim() || null }),
       })
       const { error } = await res.json()
       if (error) throw new Error(error)
@@ -126,6 +128,21 @@ export default function SettingsClient({ cafeId, serviceChargePercent, taxPercen
             </div>
             <p className="text-[11px] text-ink-faint mt-1">Set 0 to disable service charge</p>
           </div>
+        </div>
+
+        {/* City for weather */}
+        <div>
+          <label className="text-xs font-semibold text-ink-muted uppercase tracking-wide block mb-1.5">
+            City (for weather suggestions on menu)
+          </label>
+          <input
+            type="text"
+            value={city}
+            onChange={e => setCity(e.target.value)}
+            placeholder="e.g. Mumbai, Delhi, Bangalore"
+            className="w-full border border-ink/10 rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          <p className="text-[11px] text-ink-faint mt-1">Requires OPENWEATHER_API_KEY in .env</p>
         </div>
 
         <button

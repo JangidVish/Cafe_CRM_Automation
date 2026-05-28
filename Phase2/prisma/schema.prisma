@@ -177,6 +177,7 @@ model Order {
   estimatedMins     Int?          @map("estimated_mins")
   pointsEarned      Int           @default(0) @map("points_earned")
   pointsRedeemed    Int           @default(0) @map("points_redeemed")
+  billRequested     Boolean       @default(false) @map("bill_requested")
   confirmedAt       DateTime?     @map("confirmed_at") @db.Timestamptz(6)
   readyAt           DateTime?     @map("ready_at") @db.Timestamptz(6)
   servedAt          DateTime?     @map("served_at") @db.Timestamptz(6)

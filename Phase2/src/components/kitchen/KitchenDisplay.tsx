@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { differenceInMinutes } from 'date-fns'
+import { CreditCard } from 'lucide-react'
 import { useKitchenOrders } from '@/lib/hooks/useKitchenOrders'
 import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -177,6 +178,14 @@ export default function KitchenDisplay({ cafeId }: Props) {
                     status === 'pending' ? 'border-green-500/30' : 'border-gray-800'
                   }`}
                 >
+                  {/* Bill requested banner */}
+                  {order.bill_requested && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300 bg-amber-900/30 border border-amber-500/30 rounded-lg px-2.5 py-1.5 mb-2">
+                      <CreditCard size={12} />
+                      Bill requested
+                    </div>
+                  )}
+
                   {/* Order header */}
                   <div className="flex items-start justify-between mb-3">
                     <div>

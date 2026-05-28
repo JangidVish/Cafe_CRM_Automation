@@ -10,8 +10,19 @@ import CartSheet from './CartSheet'
 
 interface Props { data: MenuPageData }
 
+const WEATHER_BANNER: Record<string, { emoji: string; text: string; category?: string }> = {
+  Clear:        { emoji: '☀️', text: "It's sunny and warm — cool down with cold beverages!" },
+  Clouds:       { emoji: '🌥️', text: 'A cloudy day — perfect for hot tea or coffee.' },
+  Rain:         { emoji: '🌧️', text: 'It\'s raining outside — warm up with a hot drink!' },
+  Drizzle:      { emoji: '🌦️', text: 'Light rain outside — stay warm with a hot beverage.' },
+  Thunderstorm: { emoji: '⛈️', text: 'Stormy outside — a hot drink is just what you need.' },
+  Snow:         { emoji: '❄️', text: 'It\'s cold outside — hot drinks are on us!' },
+  Haze:         { emoji: '🌫️', text: 'Hazy day — try something light and refreshing.' },
+  Mist:         { emoji: '🌫️', text: 'Misty outside — warm up with our hot beverages.' },
+}
+
 export default function MenuShell({ data }: Props) {
-  const { cafe, table, categories } = data
+  const { cafe, table, categories, weather } = data
   const { initCart, itemCount } = useCartStore()
   const [cartOpen, setCartOpen] = useState(false)
   const [lang, setLang] = useState<'en' | 'hi'>('en')
@@ -22,6 +33,9 @@ export default function MenuShell({ data }: Props) {
     useCartStore.persist.rehydrate()
     initCart(cafe.id, table.id, table.number)
   }, [cafe.id, table.id, table.number])
+
+  const allItems: MenuItem[] = categories.flatMap(cat => cat.items ?? [])
+  const weatherBanner = weather ? WEATHER_BANNER[weather.condition] : null
 
   const filteredCategories: MenuCategory[] = categories.map(cat => ({
     ...cat,
@@ -43,6 +57,17 @@ export default function MenuShell({ data }: Props) {
         filter={filter}
         onFilterChange={setFilter}
       />
+
+      {/* Weather banner */}
+      {weatherBanner && weather && (
+        <div className="px-4 pt-2 pb-1 max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 bg-brand-50 border border-brand-100 rounded-xl px-3 py-2 text-sm text-brand-700">
+            <span className="text-base">{weatherBanner.emoji}</span>
+            <span>{weatherBanner.text}</span>
+            <span className="ml-auto text-xs text-brand-500 shrink-0">{weather.temp}°C</span>
+          </div>
+        </div>
+      )}
 
       <CategoryNav
         categories={filteredCategories}
@@ -87,6 +112,7 @@ export default function MenuShell({ data }: Props) {
         <CartSheet
           cafe={cafe}
           table={table}
+          allItems={allItems}
           onClose={() => setCartOpen(false)}
         />
       )}

@@ -30,6 +30,14 @@ export interface CafeSettings {
   service_charge_percent: number
   show_social_proof: boolean
   languages: string[]
+  city?: string
+}
+
+export interface WeatherData {
+  temp: number
+  feels_like: number
+  condition: string  // "Clear" | "Clouds" | "Rain" | "Drizzle" | "Thunderstorm" | "Snow" | "Haze"
+  description: string
 }
 
 export interface Table {
@@ -101,6 +109,7 @@ export interface Order {
   estimated_mins: number | null
   points_earned: number
   points_redeemed: number
+  bill_requested: boolean
   confirmed_at: string | null
   ready_at: string | null
   served_at: string | null
@@ -209,6 +218,7 @@ export interface MenuPageData {
   cafe: Cafe
   table: Table
   categories: MenuCategory[]
+  weather?: WeatherData | null
 }
 
 export interface Database {
