@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const {
       cafeId, tableId, items,
       paymentMethod, notes, customerPhone,
-      subtotal, taxAmount, discountAmount, totalAmount,
+      subtotal, taxAmount, serviceCharge, discountAmount, totalAmount,
       pointsRedeemed,
     } = body
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         payment_status: 'pending',
         subtotal,
         tax_amount: taxAmount,
-        service_charge: 0,
+        service_charge: serviceCharge ?? 0,
         discount_amount: discountAmount ?? 0,
         total_amount: totalAmount,
         notes: notes || null,

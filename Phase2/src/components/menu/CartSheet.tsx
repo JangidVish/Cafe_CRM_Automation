@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { X, Gift } from 'lucide-react'
+import { X, Gift, Tag, Check, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/hooks/useCart'
 import type { Cafe, Table } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -29,10 +29,20 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
   const [phone, setPhone]           = useState('')
   const [payMethod, setPayMethod]   = useState<'upi' | 'cash'>('upi')
   const [placing, setPlacing]       = useState(false)
+
+  // Loyalty
   const [pointsBalance, setPointsBalance]   = useState(0)
   const [loyaltyConfig, setLoyaltyConfig]   = useState<{ points_per_rupee: number; rupees_per_point: number; min_points_to_redeem: number; is_enabled: boolean } | null>(null)
   const [redeemPoints, setRedeemPoints]     = useState(false)
   const phoneDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Promo code
+  const [promoCode, setPromoCode]   = useState('')
+  const [promoInput, setPromoInput] = useState('')
+  const [promoDiscount, setPromoDiscount] = useState(0)
+  const [promoError, setPromoError] = useState('')
+  const [applyingPromo, setApplyingPromo] = useState(false)
+
   const router = useRouter()
 
   // Fetch loyalty data when phone number is complete
@@ -58,18 +68,50 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
 
   if (!cart) return null
 
-  const sub = subtotal()
-  const tax = Math.round(sub * (cafe.settings.tax_percent / 100))
-  const canRedeem = loyaltyConfig?.is_enabled && pointsBalance >= (loyaltyConfig?.min_points_to_redeem ?? 50)
+  const sub        = subtotal()
+  const tax        = Math.round(sub * ((cafe.settings.tax_percent ?? 0) / 100))
+  const svcCharge  = Math.round(sub * ((cafe.settings.service_charge_percent ?? 0) / 100))
+  const canRedeem  = loyaltyConfig?.is_enabled && pointsBalance >= (loyaltyConfig?.min_points_to_redeem ?? 50)
   const pointsDiscount = redeemPoints && canRedeem
-    ? Math.min(Math.floor(pointsBalance * (loyaltyConfig?.rupees_per_point ?? 0.5)), sub + tax)
+    ? Math.min(Math.floor(pointsBalance * (loyaltyConfig?.rupees_per_point ?? 0.5)), sub + tax + svcCharge)
     : 0
-  const total = sub + tax - pointsDiscount
+  const total = sub + tax + svcCharge - pointsDiscount - promoDiscount
+
+  async function applyPromo() {
+    if (!promoInput.trim()) return
+    setApplyingPromo(true)
+    setPromoError('')
+    try {
+      const res = await fetch(
+        `/api/promo?cafeId=${cafe.id}&code=${encodeURIComponent(promoInput.trim())}&subtotal=${sub}`
+      )
+      const { data, error } = await res.json()
+      if (error || !data) {
+        setPromoError(error ?? 'Invalid code')
+        setPromoDiscount(0)
+        setPromoCode('')
+      } else {
+        setPromoCode(data.code)
+        setPromoDiscount(data.discount)
+        toast.success(`Promo applied — ₹${data.discount} off!`)
+      }
+    } catch {
+      setPromoError('Could not apply code. Try again.')
+    } finally {
+      setApplyingPromo(false)
+    }
+  }
+
+  function clearPromo() {
+    setPromoInput('')
+    setPromoCode('')
+    setPromoDiscount(0)
+    setPromoError('')
+  }
 
   async function placeOrder() {
     setPlacing(true)
     try {
-      // 1. Create our order row
       const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,7 +130,9 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           customerPhone: phone.trim() || undefined,
           subtotal: sub,
           taxAmount: tax,
-          discountAmount: pointsDiscount,
+          serviceCharge: svcCharge,
+          discountAmount: pointsDiscount + promoDiscount,
+          promoCode: promoCode || null,
           pointsRedeemed: redeemPoints && canRedeem ? pointsBalance : 0,
           totalAmount: total,
         }),
@@ -96,14 +140,12 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
       const { data: order, error: orderErr } = await orderRes.json()
       if (orderErr) throw new Error(orderErr)
 
-      // 2. Cash → straight to order page
       if (payMethod === 'cash') {
         clearCart()
         router.push(`/order/${order.id}`)
         return
       }
 
-      // 3. UPI → open Razorpay
       const loaded = await loadRazorpayScript()
       if (!loaded) {
         toast.error('Could not load payment gateway. Try again.')
@@ -129,16 +171,15 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
         prefill:     { contact: phone ? `91${phone}` : '' },
         theme:       { color: '#FF9500' },
         handler: async (response: any) => {
-          // Verify signature server-side
           await fetch('/api/payments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              action:             'verify',
-              orderId:            order.id,
-              razorpayOrderId:    response.razorpay_order_id,
-              razorpayPaymentId:  response.razorpay_payment_id,
-              razorpaySignature:  response.razorpay_signature,
+              action:            'verify',
+              orderId:           order.id,
+              razorpayOrderId:   response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
             }),
           })
           clearCart()
@@ -146,7 +187,6 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
         },
         modal: {
           ondismiss: () => {
-            // Payment abandoned — still go to order page, WA won't fire (payment_status stays pending)
             clearCart()
             router.push(`/order/${order.id}`)
           },
@@ -163,10 +203,7 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-ink/40 z-40 animate-fade-in"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-ink/40 z-40 animate-fade-in" onClick={onClose} />
 
       {/* Sheet */}
       <div className="fixed inset-x-0 bottom-0 z-50 bg-surface-raised rounded-t-3xl animate-slide-up max-h-[85vh] overflow-auto pb-safe">
@@ -190,24 +227,18 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
             <div key={menuItem.id} className="flex items-center gap-3">
               <div className="flex-1">
                 <p className="text-sm font-medium text-ink">{menuItem.name}</p>
-                {customisation && (
-                  <p className="text-xs text-ink-muted">{customisation}</p>
-                )}
+                {customisation && <p className="text-xs text-ink-muted">{customisation}</p>}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => updateQuantity(menuItem.id, quantity - 1)}
                   className="w-6 h-6 rounded-full border border-ink/20 flex items-center justify-center text-ink-muted hover:border-ink/40"
-                >
-                  −
-                </button>
+                >−</button>
                 <span className="text-sm font-medium w-4 text-center">{quantity}</span>
                 <button
                   onClick={() => updateQuantity(menuItem.id, quantity + 1)}
                   className="w-6 h-6 rounded-full border border-ink/20 flex items-center justify-center text-ink-muted hover:border-ink/40"
-                >
-                  +
-                </button>
+                >+</button>
               </div>
               <span className="text-sm font-semibold text-ink w-16 text-right">
                 ₹{menuItem.price * quantity}
@@ -216,7 +247,7 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           ))}
         </div>
 
-        {/* Phone — optional, for WhatsApp confirmation */}
+        {/* Phone */}
         <div className="px-5 pb-3">
           <div className="flex items-center gap-2 bg-surface-overlay rounded-xl border border-ink/5 px-3 py-2 focus-within:ring-1 focus-within:ring-brand-400">
             <span className="text-sm text-ink-muted shrink-0">🇮🇳 +91</span>
@@ -253,6 +284,41 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
             </label>
           </div>
         )}
+
+        {/* Promo code */}
+        <div className="px-5 pb-3">
+          {promoCode ? (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-green-50 border border-green-200">
+              <Check size={14} className="text-green-600 shrink-0" />
+              <span className="text-sm font-semibold text-green-700 flex-1">{promoCode} — ₹{promoDiscount} off</span>
+              <button onClick={clearPromo} className="text-xs text-green-600 hover:text-red-500">Remove</button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-1 bg-surface-overlay rounded-xl border border-ink/5 px-3 py-2 focus-within:ring-1 focus-within:ring-brand-400">
+                  <Tag size={13} className="text-ink-faint shrink-0" />
+                  <input
+                    type="text"
+                    value={promoInput}
+                    onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError('') }}
+                    onKeyDown={e => e.key === 'Enter' && applyPromo()}
+                    placeholder="Promo code"
+                    className="flex-1 text-sm text-ink placeholder:text-ink-faint bg-transparent focus:outline-none uppercase"
+                  />
+                </div>
+                <button
+                  onClick={applyPromo}
+                  disabled={applyingPromo || !promoInput.trim()}
+                  className="px-4 py-2 bg-brand-400 text-white text-sm font-semibold rounded-xl hover:bg-brand-500 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {applyingPromo ? <Loader2 size={13} className="animate-spin" /> : 'Apply'}
+                </button>
+              </div>
+              {promoError && <p className="text-[11px] text-red-500 mt-1 px-1">{promoError}</p>}
+            </div>
+          )}
+        </div>
 
         {/* Notes */}
         <div className="px-5 pb-3">
@@ -304,9 +370,19 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           <div className="flex justify-between text-sm text-ink-muted">
             <span>GST ({cafe.settings.tax_percent}%)</span><span>₹{tax}</span>
           </div>
+          {svcCharge > 0 && (
+            <div className="flex justify-between text-sm text-ink-muted">
+              <span>Service charge ({cafe.settings.service_charge_percent}%)</span><span>₹{svcCharge}</span>
+            </div>
+          )}
           {pointsDiscount > 0 && (
             <div className="flex justify-between text-sm text-brand-600 font-medium">
               <span>Points discount</span><span>−₹{pointsDiscount}</span>
+            </div>
+          )}
+          {promoDiscount > 0 && (
+            <div className="flex justify-between text-sm text-green-600 font-medium">
+              <span>Promo ({promoCode})</span><span>−₹{promoDiscount}</span>
             </div>
           )}
           <div className="flex justify-between text-base font-semibold text-ink pt-1.5 border-t border-ink/10">
@@ -330,7 +406,6 @@ export default function CartSheet({ cafe, table, onClose }: Props) {
           </button>
         </div>
       </div>
-
     </>
   )
 }

@@ -146,6 +146,7 @@ model Customer {
   lastVisitAt   DateTime? @map("last_visit_at") @db.Timestamptz(6)
   tags          String[]  @default([])
   pointsBalance Int       @default(0) @map("points_balance")
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   cafe           Cafe             @relation(fields: [cafeId], references: [id], onDelete: Cascade)

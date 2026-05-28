@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { formatDistanceToNow, differenceInMinutes } from 'date-fns'
+import { differenceInMinutes } from 'date-fns'
 import { useKitchenOrders } from '@/lib/hooks/useKitchenOrders'
-import type { Order, OrderStatus } from '@/lib/types'
+import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import toast from 'react-hot-toast'
 
 const STATUS_FLOW: Record<string, OrderStatus> = {
@@ -26,6 +26,18 @@ const STATUS_COLOUR: Record<string, string> = {
   ready:     'bg-purple-500',
 }
 
+const ITEM_STATUS_CYCLE: Record<string, string> = {
+  pending: 'making',
+  making:  'done',
+  done:    'done',
+}
+
+const ITEM_STATUS_STYLE: Record<string, string> = {
+  pending: 'text-gray-300',
+  making:  'text-amber-300',
+  done:    'text-green-500 line-through opacity-50',
+}
+
 function getTimerClass(createdAt: string): string {
   const mins = differenceInMinutes(new Date(), new Date(createdAt))
   if (mins > 20) return 'text-red-500'
@@ -47,7 +59,7 @@ function Timer({ createdAt }: { createdAt: string }) {
   )
 }
 
-async function updateStatus(orderId: string, status: OrderStatus) {
+async function updateOrderStatus(orderId: string, status: OrderStatus) {
   await fetch('/api/orders', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -55,10 +67,25 @@ async function updateStatus(orderId: string, status: OrderStatus) {
   })
 }
 
+async function cycleItemStatus(itemId: string, currentStatus: string): Promise<string | null> {
+  const next = ITEM_STATUS_CYCLE[currentStatus]
+  if (!next || next === currentStatus) return null
+  const res = await fetch('/api/order-items', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId, status: next }),
+  })
+  const { data, error } = await res.json()
+  if (error) return null
+  return data?.status ?? null
+}
+
 interface Props { cafeId: string }
 
 export default function KitchenDisplay({ cafeId }: Props) {
   const { orders, loading, connected } = useKitchenOrders(cafeId)
+  const [itemStatuses, setItemStatuses] = useState<Record<string, string>>({})
+  const [togglingItem, setTogglingItem] = useState<string | null>(null)
 
   const columns: Record<string, Order[]> = {
     pending:   orders.filter(o => o.status === 'pending'),
@@ -70,8 +97,18 @@ export default function KitchenDisplay({ cafeId }: Props) {
   async function advance(order: Order) {
     const next = STATUS_FLOW[order.status]
     if (!next) return
-    await updateStatus(order.id, next)
+    await updateOrderStatus(order.id, next)
     toast.success(`${order.order_number} → ${next}`)
+  }
+
+  async function toggleItem(item: OrderItem) {
+    if (togglingItem === item.id) return
+    const current = itemStatuses[item.id] ?? item.status ?? 'pending'
+    if (current === 'done') return
+    setTogglingItem(item.id)
+    const next = await cycleItemStatus(item.id, current)
+    if (next) setItemStatuses(prev => ({ ...prev, [item.id]: next }))
+    setTogglingItem(null)
   }
 
   if (loading) {
@@ -105,7 +142,9 @@ export default function KitchenDisplay({ cafeId }: Props) {
               <span className="text-sm text-amber-400">Reconnecting…</span>
             </>
           )}
-          <span className="text-sm text-gray-500">{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="text-sm text-gray-500">
+            {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
       </div>
 
@@ -152,21 +191,34 @@ export default function KitchenDisplay({ cafeId }: Props) {
                     <Timer createdAt={order.created_at} />
                   </div>
 
-                  {/* Items */}
+                  {/* Items — tap to cycle pending → making → done */}
                   <div className="space-y-1 mb-3">
-                    {(order.items ?? []).map(item => (
-                      <div key={item.id} className="flex items-start gap-2 text-sm">
-                        <span className="text-gray-400 font-mono w-5 text-right flex-shrink-0">
-                          {item.quantity}×
-                        </span>
-                        <div>
-                          <span className="text-gray-200">{item.name}</span>
-                          {item.customisation && (
-                            <div className="text-xs text-amber-400 italic">{item.customisation}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                    {(order.items ?? []).map(item => {
+                      const itemStatus = itemStatuses[item.id] ?? item.status ?? 'pending'
+                      const isDone     = itemStatus === 'done'
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleItem(item)}
+                          disabled={isDone || togglingItem === item.id}
+                          className={`w-full flex items-start gap-2 text-sm px-2 py-1 rounded-lg transition-opacity text-left ${!isDone ? 'hover:bg-white/5 cursor-pointer' : 'cursor-default'}`}
+                        >
+                          <span className="text-gray-400 font-mono w-5 text-right flex-shrink-0 text-xs mt-0.5">
+                            {item.quantity}×
+                          </span>
+                          <div className="flex-1">
+                            <span className={ITEM_STATUS_STYLE[itemStatus]}>{item.name}</span>
+                            {item.customisation && (
+                              <div className="text-xs text-amber-400 italic">{item.customisation}</div>
+                            )}
+                          </div>
+                          {/* Status dot */}
+                          <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
+                            isDone ? 'bg-green-500' : itemStatus === 'making' ? 'bg-amber-400' : 'bg-gray-600'
+                          }`} />
+                        </button>
+                      )
+                    })}
                   </div>
 
                   {/* Notes */}

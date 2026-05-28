@@ -2,12 +2,19 @@ import { createAdminClient, getOwnerCafe } from '@/lib/supabase/server'
 import { startOfDay, endOfDay, subDays, format, getHours } from 'date-fns'
 import type { Order } from '@/lib/types'
 import NoCafeSetup from '@/components/dashboard/NoCafeSetup'
+import AnalyticsRangeNav from './AnalyticsRangeNav'
 
 export const metadata = { title: 'Analytics' }
 
-export default async function AnalyticsPage() {
+interface Props { searchParams: { range?: string } }
+
+export default async function AnalyticsPage({ searchParams }: Props) {
   const cafe = await getOwnerCafe()
   if (!cafe) return <NoCafeSetup />
+
+  const rangeDays = [7, 30, 90].includes(Number(searchParams.range))
+    ? Number(searchParams.range)
+    : 7
 
   const supabase = createAdminClient()
   const today = new Date()
@@ -17,7 +24,7 @@ export default async function AnalyticsPage() {
       .from('orders')
       .select('*, items:order_items(*)')
       .eq('cafe_id', cafe.id)
-      .gte('created_at', startOfDay(subDays(today, 6)).toISOString())
+      .gte('created_at', startOfDay(subDays(today, rangeDays - 1)).toISOString())
       .lte('created_at', endOfDay(today).toISOString())
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true }),
@@ -35,9 +42,10 @@ export default async function AnalyticsPage() {
     ? (ratings.reduce((s, r) => s + r.rating, 0) / ratings.length).toFixed(1)
     : null
 
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = subDays(today, 6 - i)
-    const label   = format(d, 'EEE')
+  // Build bar chart: last N days bucketed by day
+  const days = Array.from({ length: Math.min(rangeDays, 30) }, (_, i) => {
+    const d = subDays(today, Math.min(rangeDays, 30) - 1 - i)
+    const label   = rangeDays <= 7 ? format(d, 'EEE') : format(d, 'dd MMM')
     const dateStr = format(d, 'yyyy-MM-dd')
     const dayOrders = allOrders.filter(o => o.created_at.startsWith(dateStr) && o.payment_status === 'paid')
     return { label, revenue: dayOrders.reduce((s, o) => s + o.total_amount, 0), count: dayOrders.length }
@@ -53,10 +61,10 @@ export default async function AnalyticsPage() {
       itemCounts[item.name].revenue += item.subtotal
     })
   })
-  const topItems  = Object.values(itemCounts).sort((a, b) => b.count - a.count).slice(0, 8)
-  const maxCount  = Math.max(...topItems.map(i => i.count), 1)
+  const topItems = Object.values(itemCounts).sort((a, b) => b.count - a.count).slice(0, 8)
+  const maxCount = Math.max(...topItems.map(i => i.count), 1)
 
-  const todayStr  = format(today, 'yyyy-MM-dd')
+  const todayStr    = format(today, 'yyyy-MM-dd')
   const todayOrders = allOrders.filter(o => o.created_at.startsWith(todayStr))
   const hourly = Array.from({ length: 14 }, (_, i) => {
     const hour  = i + 7
@@ -65,24 +73,27 @@ export default async function AnalyticsPage() {
   })
   const maxHourly = Math.max(...hourly.map(h => h.count), 1)
 
-  const totalRevenue   = allOrders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + o.total_amount, 0)
-  const totalOrders    = allOrders.length
-  const avgOrderValue  = totalOrders > 0 ? totalRevenue / totalOrders : 0
+  const totalRevenue  = allOrders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + o.total_amount, 0)
+  const totalOrders   = allOrders.length
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Analytics</h1>
-        <p className="text-ink-muted text-sm mt-0.5">Last 7 days</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-ink">Analytics</h1>
+          <p className="text-ink-muted text-sm mt-0.5">Last {rangeDays} days</p>
+        </div>
+        <AnalyticsRangeNav current={rangeDays} />
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: '7-day revenue',  value: `₹${Math.round(totalRevenue).toLocaleString('en-IN')}` },
-          { label: 'Total orders',   value: totalOrders.toString() },
-          { label: 'Avg order value', value: avgOrderValue > 0 ? `₹${Math.round(avgOrderValue)}` : '—' },
-          { label: 'Avg rating',      value: avgRating ? `★ ${avgRating}` : '—' },
+          { label: `${rangeDays}-day revenue`,  value: `₹${Math.round(totalRevenue).toLocaleString('en-IN')}` },
+          { label: 'Total orders',              value: totalOrders.toString() },
+          { label: 'Avg order value',           value: avgOrderValue > 0 ? `₹${Math.round(avgOrderValue)}` : '—' },
+          { label: 'Avg rating',                value: avgRating ? `★ ${avgRating}` : '—' },
         ].map(m => (
           <div key={m.label} className="bg-surface-raised rounded-2xl border border-ink/5 p-4">
             <p className="text-xs text-ink-faint uppercase tracking-wide font-medium">{m.label}</p>
@@ -93,11 +104,13 @@ export default async function AnalyticsPage() {
 
       {/* Revenue chart */}
       <div className="bg-surface-raised rounded-2xl border border-ink/5 p-5">
-        <h2 className="font-display font-semibold text-ink mb-5">Revenue — last 7 days</h2>
-        <div className="flex items-end gap-3 h-40">
+        <h2 className="font-display font-semibold text-ink mb-5">
+          Revenue — last {Math.min(rangeDays, 30)} days
+        </h2>
+        <div className="flex items-end gap-1.5 h-40 overflow-x-auto">
           {days.map(d => (
-            <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
-              <span className="text-xs text-ink-muted">
+            <div key={d.label} className="flex-1 min-w-6 flex flex-col items-center gap-1.5">
+              <span className="text-[10px] text-ink-muted whitespace-nowrap">
                 {d.revenue > 0 ? `₹${Math.round(d.revenue / 100) * 100}` : ''}
               </span>
               <div className="w-full flex items-end" style={{ height: '100px' }}>
@@ -106,7 +119,7 @@ export default async function AnalyticsPage() {
                   style={{ height: `${Math.max((d.revenue / maxRevenue) * 100, d.revenue > 0 ? 4 : 0)}%` }}
                 />
               </div>
-              <span className="text-xs text-ink-faint">{d.label}</span>
+              <span className="text-[10px] text-ink-faint whitespace-nowrap">{d.label}</span>
             </div>
           ))}
         </div>
@@ -115,7 +128,7 @@ export default async function AnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Top items */}
         <div className="bg-surface-raised rounded-2xl border border-ink/5 p-5">
-          <h2 className="font-display font-semibold text-ink mb-4">Top items (7 days)</h2>
+          <h2 className="font-display font-semibold text-ink mb-4">Top items ({rangeDays} days)</h2>
           {topItems.length === 0 ? (
             <p className="text-ink-muted text-sm">No orders yet</p>
           ) : (

@@ -55,6 +55,9 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer, lt
   const [editName, setEditName]     = useState('')
   const [saving, setSaving]         = useState<string | null>(null)
   const [autoTagging, setAutoTagging] = useState(false)
+  const [editingDob, setEditingDob]   = useState<string | null>(null)
+  const [dobValue, setDobValue]       = useState('')
+  const [savingDob, setSavingDob]     = useState<string | null>(null)
 
   // LTV tier config
   const [activeTiers, setActiveTiers]     = useState<LtvTiers>(ltvTiers)
@@ -91,6 +94,26 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer, lt
       toast.error('Could not save name')
     } finally {
       setSaving(null)
+    }
+  }
+
+  async function saveDob(customerId: string) {
+    setSavingDob(customerId)
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, date_of_birth: dobValue || null }),
+      })
+      const { data, error } = await res.json()
+      if (error) throw new Error(error)
+      setCustomers(prev => prev.map(c => c.id === customerId ? { ...c, date_of_birth: data.date_of_birth } : c))
+      setEditingDob(null)
+      toast.success('Birthday saved')
+    } catch {
+      toast.error('Could not save birthday')
+    } finally {
+      setSavingDob(null)
     }
   }
 
@@ -422,20 +445,66 @@ export default function CustomersClient({ initialCustomers, ordersByCustomer, lt
                       </td>
                     </tr>
 
-                    {/* Expanded order history */}
+                    {/* Expanded order history + DOB */}
                     {isExpanded && (
                       <tr key={`${customer.id}-orders`} className="bg-surface border-b border-ink/5">
                         <td colSpan={8} className="px-5 py-3">
-                          <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">Recent orders</p>
-                          <div className="space-y-1.5">
-                            {recentOrders.map(o => (
-                              <div key={o.id} className="flex items-center justify-between text-sm">
-                                <span className="font-medium text-ink">{o.order_number}</span>
-                                <span className="text-ink-muted">{formatDate(o.created_at)}</span>
-                                <span className="capitalize text-xs px-2 py-0.5 rounded-full bg-surface-overlay text-ink-muted">{o.status}</span>
-                                <span className="font-semibold text-ink">₹{Math.round(o.total_amount)}</span>
+                          <div className="flex flex-wrap gap-8">
+                            {/* Birthday */}
+                            <div>
+                              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">Birthday</p>
+                              {editingDob === customer.id ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="date"
+                                    value={dobValue}
+                                    onChange={e => setDobValue(e.target.value)}
+                                    className="text-sm border border-brand-400 rounded-lg px-2 py-0.5 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => saveDob(customer.id)}
+                                    disabled={savingDob === customer.id}
+                                    className="p-0.5 text-green-600 hover:text-green-700"
+                                  >
+                                    <Check size={14} />
+                                  </button>
+                                  <button onClick={() => setEditingDob(null)} className="p-0.5 text-ink-faint hover:text-ink-muted">
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingDob(customer.id)
+                                    setDobValue(customer.date_of_birth ? customer.date_of_birth.slice(0, 10) : '')
+                                  }}
+                                  className="text-sm text-ink-muted hover:text-ink flex items-center gap-1.5 group"
+                                >
+                                  {customer.date_of_birth
+                                    ? new Date(customer.date_of_birth).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })
+                                    : <span className="italic text-ink-faint">Not set</span>
+                                  }
+                                  <Pencil size={11} className="opacity-0 group-hover:opacity-100" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Recent orders */}
+                            {recentOrders.length > 0 && (
+                              <div className="flex-1 min-w-48">
+                                <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">Recent orders</p>
+                                <div className="space-y-1.5">
+                                  {recentOrders.map(o => (
+                                    <div key={o.id} className="flex items-center justify-between text-sm">
+                                      <span className="font-medium text-ink">{o.order_number}</span>
+                                      <span className="text-ink-muted">{formatDate(o.created_at)}</span>
+                                      <span className="capitalize text-xs px-2 py-0.5 rounded-full bg-surface-overlay text-ink-muted">{o.status}</span>
+                                      <span className="font-semibold text-ink">₹{Math.round(o.total_amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            ))}
+                            )}
                           </div>
                         </td>
                       </tr>

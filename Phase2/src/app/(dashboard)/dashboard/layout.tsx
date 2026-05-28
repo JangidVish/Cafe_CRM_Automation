@@ -13,6 +13,7 @@ import {
   LogOut,
   Megaphone,
   Gift,
+  Settings,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -26,6 +27,7 @@ const NAV = [
   { href: '/dashboard/loyalty',      label: 'Loyalty',      icon: Gift },
   { href: '/dashboard/tables',       label: 'Tables & QR',  icon: QrCode },
   { href: '/kitchen',                label: 'Kitchen view', icon: MonitorPlay },
+  { href: '/dashboard/settings',    label: 'Settings',     icon: Settings },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

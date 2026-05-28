@@ -136,6 +136,7 @@ export interface Customer {
   last_visit_at: string | null
   tags: string[]
   points_balance: number
+  date_of_birth: string | null
   created_at: string
 }
 

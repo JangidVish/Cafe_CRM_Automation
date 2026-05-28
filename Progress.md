@@ -79,8 +79,8 @@
 | 50 | Razorpay modal integration (client-side) | ✅ | Dynamically loads Razorpay script |
 | 51 | Razorpay signature verification (server-side) | ✅ | HMAC-SHA256 — prevents spoofing |
 | 52 | Cart clear after successful checkout | ✅ | Zustand store reset on order success |
-| 53 | Discount / promo code support | ⬜ | `discount_amount` column exists in schema, no UI |
-| 54 | Service charge configurable in checkout | ⬜ | Column in schema, not exposed to customer |
+| 53 | Discount / promo code support | ✅ | Promo codes stored in `cafes.settings.promo_codes`; UI in CartSheet; managed in `/dashboard/settings` |
+| 54 | Service charge configurable in checkout | ✅ | `service_charge_percent` shown in bill summary; configured at `/dashboard/settings` |
 
 ### 2.6 Order Tracking
 | # | Task | Status | Notes |
@@ -103,7 +103,7 @@
 | 66 | Special notes highlighted in amber | ✅ | Shown inside order card |
 | 67 | Live indicator (blinking green dot) | ✅ | Shows Realtime is connected |
 | 68 | Kitchen auth (per-cafe login, not hardcoded) | ✅ | Kitchen page now uses `getOwnerCafe()` — each owner sees only their own kitchen |
-| 69 | Per-item status tracking in KDS | ⬜ | `order_items.status` column exists, no UI for it |
+| 69 | Per-item status tracking in KDS | ✅ | Tap each item to cycle pending→making→done; dot indicator per item; persisted via `PATCH /api/order-items` |
 
 ### 2.8 Owner Dashboard
 | # | Task | Status | Notes |
@@ -123,7 +123,7 @@
 | 82 | **Analytics** — 7-day revenue bar chart | ✅ | Pure CSS bars |
 | 83 | **Analytics** — top 8 items horizontal bars | ✅ | |
 | 84 | **Analytics** — hourly distribution (today) | ✅ | 7am–8pm histogram |
-| 85 | **Analytics** — date range picker (beyond 7 days) | ⬜ | Fixed 7-day window only |
+| 85 | **Analytics** — date range picker (beyond 7 days) | ✅ | 7 / 30 / 90 day pill switcher; URL-driven via `?range=` param |
 | 86 | **Customers** — list with search + tag filter | ✅ | `CustomersClient.tsx` |
 | 87 | **Customers** — inline name edit | ✅ | Click to edit, check/X to save |
 | 88 | **Customers** — tag toggle (VIP / Regular / Lapsed) | ✅ | One-click toggle |
@@ -154,7 +154,7 @@
 | 101 | Customer schema + RLS | ✅ | In `001_initial_schema.sql` |
 | 102 | Customer auto-upsert on every order | ✅ | Phone-keyed, handled in `POST /api/orders` |
 | 103 | Customer stats DB trigger | ✅ | `002_customer_stats.sql` — auto-updates `total_orders`, `total_spent`, `last_visit_at` |
-| 104 | Run `002_customer_stats.sql` in production | ⬜ | Migration written but needs to be executed on live DB |
+| 104 | Run `002_customer_stats.sql` in production | ✅ | Executed via `prisma db execute` on 2026-05-27 |
 
 ### 3.2 Customer Segmentation
 | # | Task | Status | Notes |
@@ -173,7 +173,7 @@
 | 112 | Campaign segment counts | ✅ | Live count shown in drawer for All/VIP/Regular/Lapsed |
 | 113 | Campaign history list | ✅ | Shows status, sent count, date |
 | 114 | `sendWhatsApp` generic utility | ✅ | Added to `whatsapp.ts` for campaigns + low-rating alerts |
-| 115 | Birthday / anniversary greetings | ⬜ | Requires DOB field on customer (not in schema yet) |
+| 115 | Birthday / anniversary greetings | 🔧 | `date_of_birth` added to Prisma schema + DB; editable in customer expand row; send logic pending Wati |
 | 116 | Campaign delivery analytics (Wati webhooks) | ⬜ | Wati webhook for status callbacks |
 
 ### 3.4 Loyalty System

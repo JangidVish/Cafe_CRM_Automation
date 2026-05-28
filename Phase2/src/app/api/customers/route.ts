@@ -38,13 +38,14 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { customerId, name, tags } = await req.json()
+    const { customerId, name, tags, date_of_birth } = await req.json()
     if (!customerId) return NextResponse.json({ error: 'customerId required' }, { status: 400 })
 
     const supabase = createAdminClient()
     const update: Record<string, unknown> = {}
     if (name !== undefined) update.name = name || null
     if (tags !== undefined) update.tags = tags
+    if (date_of_birth !== undefined) update.date_of_birth = date_of_birth || null
 
     const { data, error } = await supabase
       .from('customers')
